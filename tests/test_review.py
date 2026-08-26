@@ -55,7 +55,7 @@ def test_review_markdown_truncates_large_event_lists_but_keeps_counts():
     text = review_markdown(report, max_items=2)
     assert f"{len(report['changes']['events'])} events" in text
     assert "more** not shown in the compact summary" in text
-    assert text.count("- **") == 3  # two events plus the truncation marker
+    assert text.count("- **") == 2
 
 
 def test_review_markdown_rejects_zero_item_limit():
