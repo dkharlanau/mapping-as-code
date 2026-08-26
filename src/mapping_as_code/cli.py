@@ -16,8 +16,10 @@ from .adapters import (
 )
 from .annotations import github_annotations
 from .artifacts import catalog_html, catalog_markdown, release_bundle, source_sha256, traceability_matrix
+from .change_projection import to_enterprise_change_transition
 from .core import diff_documents, lineage_graph, lineage_mermaid, mapping_summary, validate_document
 from .governance import breaking_change_report, quality_scorecard, validation_report
+from .graph_exports import lineage_cypher, lineage_graphml
 from .interface_binding import bind_interface_contract
 from .io import load_document
 from .review import review_markdown, review_report
@@ -92,9 +94,14 @@ def _diff(args: argparse.Namespace) -> int:
 def _lineage(args: argparse.Namespace) -> int:
     document = load_document(args.file)
     if args.format == "mermaid":
-        print(lineage_mermaid(document), end="")
+        text = lineage_mermaid(document)
+    elif args.format == "graphml":
+        text = lineage_graphml(document)
+    elif args.format == "cypher":
+        text = lineage_cypher(document)
     else:
-        _dump(lineage_graph(document))
+        text = json.dumps(lineage_graph(document), indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    _write(text, args.output)
     return 0
 
 
@@ -191,6 +198,16 @@ def _bind_interface(args: argparse.Namespace) -> int:
     return 0
 
 
+def _change_graph(args: argparse.Namespace) -> int:
+    result = to_enterprise_change_transition(
+        load_document(args.old),
+        load_document(args.new),
+        change_id=args.change_id,
+    )
+    _write(_serialize(result, args.format), args.output)
+    return 0
+
+
 def _project(args: argparse.Namespace) -> int:
     document = load_document(args.file)
     if args.target == "transformation-graph":
@@ -240,9 +257,10 @@ def build_parser() -> argparse.ArgumentParser:
     diff.add_argument("--format", choices=("text", "json"), default="text")
     diff.set_defaults(func=_diff)
 
-    lineage = sub.add_parser("lineage", help="Build field-level lineage")
+    lineage = sub.add_parser("lineage", help="Build or export field-level lineage")
     lineage.add_argument("file")
-    lineage.add_argument("--format", choices=("json", "mermaid"), default="json")
+    lineage.add_argument("--format", choices=("json", "mermaid", "graphml", "cypher"), default="json")
+    lineage.add_argument("--output", "-o")
     lineage.set_defaults(func=_lineage)
 
     importer = sub.add_parser("import", help="Convert CSV/XLSX mapping workbooks to canonical Mapping as Code")
@@ -315,6 +333,14 @@ def build_parser() -> argparse.ArgumentParser:
     bind_interface.add_argument("--format", choices=("yaml", "json"), default="yaml")
     bind_interface.add_argument("--output", "-o")
     bind_interface.set_defaults(func=_bind_interface)
+
+    change_graph = sub.add_parser("change-graph", help="Project a mapping revision as Enterprise Change Graph impact seeds")
+    change_graph.add_argument("old")
+    change_graph.add_argument("new")
+    change_graph.add_argument("--change-id")
+    change_graph.add_argument("--format", choices=("yaml", "json"), default="json")
+    change_graph.add_argument("--output", "-o")
+    change_graph.set_defaults(func=_change_graph)
 
     project = sub.add_parser("project", help="Project a mapping into an adjacent enterprise-as-code contract")
     project.add_argument("file")
