@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mapping-as-code"
-version = "0.3.0"
-description = "Versionable enterprise mapping specifications with validation, workbook import, semantic diff, lineage, and cross-repository projections."
+version = "0.4.0"
+description = "Versionable enterprise mapping contracts with workbook import, governance, change gates, evidence bundles, lineage, and interoperable projections."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {file = "LICENSE"}
