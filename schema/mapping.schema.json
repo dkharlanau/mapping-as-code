@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dkharlanau.github.io/mapping-as-code/schema/mapping.schema.json",
+  "title": "Mapping as Code specification",
+  "type": "object",
+  "required": ["schema_version", "mapping"],
+  "properties": {
+    "schema_version": {"type": "string", "const": "0.1"},
+    "mapping": {
+      "type": "object",
+      "required": ["id", "source", "target", "fields"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "title": {"type": "string"},
+        "description": {"type": "string"},
+        "source": {"$ref": "#/$defs/objectEndpoint"},
+        "target": {"$ref": "#/$defs/objectEndpoint"},
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/fieldMapping"}
+        }
+      },
+      "additionalProperties": true
+    },
+    "value_maps": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
+  },
+  "$defs": {
+    "objectEndpoint": {
+      "type": "object",
+      "required": ["system", "object"],
+      "properties": {
+        "system": {"type": "string", "minLength": 1},
+        "object": {"type": "string", "minLength": 1},
+        "required_fields": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "fieldEndpoint": {
+      "type": "object",
+      "required": ["field"],
+      "properties": {
+        "field": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": true
+    },
+    "transform": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": ["copy", "lookup", "constant", "expression", "concat", "split", "date", "number", "boolean"]
+        },
+        "reference": {"type": "string"},
+        "value": {},
+        "expression": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "fieldMapping": {
+      "type": "object",
+      "required": ["id", "target"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "source": {"$ref": "#/$defs/fieldEndpoint"},
+        "target": {"$ref": "#/$defs/fieldEndpoint"},
+        "transform": {"$ref": "#/$defs/transform"},
+        "rules": {"type": "object"},
+        "business": {"type": "object"},
+        "allow_multiple_sources": {"type": "boolean"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}
