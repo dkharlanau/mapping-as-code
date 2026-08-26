@@ -1,0 +1,8 @@
+{
+  "project": "dkharlanau/reconciliation-as-code",
+  "contract": "schema/reconciliation.schema.json",
+  "version": 1,
+  "source_blob_sha": "b181b096a05fc1785165864d94d555804c1f45d0",
+  "source_url": "https://github.com/dkharlanau/reconciliation-as-code/blob/main/schema/reconciliation.schema.json",
+  "purpose": "Retained target contract for deterministic adapter conformance tests."
+}
