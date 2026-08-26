@@ -60,22 +60,20 @@
 - [x] idempotent PR comment update
 - [x] self-dogfood Action CI using `uses: ./`
 
-## P0 — review ergonomics
+## Shipped — v0.5 review ergonomics and deeper interoperability
 
-- [ ] GitHub annotation commands for file-level diagnostics
-- [ ] SARIF output where source locations can be represented reliably
-- [ ] compact executive change summary for large mappings
-- [ ] configurable fail-on-quality-regression threshold
+- [x] GitHub annotation commands for file-level diagnostics
+- [x] file-level SARIF output without invented line numbers
+- [x] compact executive PR summary for large mappings
+- [x] configurable fail-on-quality-regression threshold
+- [x] Interface as Code v1.0 artifact binding with endpoint safety
+- [x] mapping-diff seeds and transition topology for Enterprise Change Graph
+- [x] retained target schemas with pinned blob provenance
+- [x] adapter conformance tests for Transformation Graph, Reconciliation, Change Graph, Visual Workbench, and Interface as Code
+- [x] portable GraphML and Cypher lineage export
+- [x] generated cross-repository ecosystem evidence bundle
 
-## P1 — deeper interoperability
-
-- [ ] Interface as Code field-contract references
-- [ ] change-diff seeds for Enterprise Change Graph
-- [ ] adapter conformance reports against retained target-schema versions
-- [ ] portable GraphML/Cypher export where useful
-- [ ] generated cross-repository evidence bundle
-
-## P1 — scale and enterprise ingestion
+## P0 — scale and enterprise ingestion
 
 - [ ] multi-file mapping composition
 - [ ] mapping namespaces and reusable fragments
@@ -83,6 +81,14 @@
 - [ ] mapping catalog search/index
 - [ ] import profiles for common migration/integration workbook layouts
 - [ ] optional agent-facing context bundles
+
+## P1 — ecosystem hardening
+
+- [ ] retained-contract drift checker against upstream schemas
+- [ ] ecosystem bundle split/materialize command for downstream tools
+- [ ] GraphML/Cypher transition-graph export
+- [ ] release tags and immutable action examples
+- [ ] compatibility matrix in generated documentation
 
 ## Product boundary
 
