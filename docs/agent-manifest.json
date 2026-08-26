@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "product": "mapping-as-code",
+  "purpose": "Govern source-to-target transformation intent as a validated, compilable, auditable contract.",
+  "human_url": "https://dkharlanau.github.io/mapping-as-code/",
+  "repository": "https://github.com/dkharlanau/mapping-as-code",
+  "boundaries": ["not an ETL runtime", "do not invent source or target semantics", "validate before compile", "preserve deterministic outputs"],
+  "capabilities": ["validate mapping contracts", "compile supported executable mappings", "render source and target schema views", "measure mapping coverage", "build evidence bundles"],
+  "entrypoints": [
+    {"type":"cli","command":"python -m mac validate <mapping.yaml>"},
+    {"type":"cli","command":"python -m mac schema <mapping.yaml> --direction target"},
+    {"type":"cli","command":"python -m mac coverage <mapping.yaml>"},
+    {"type":"cli","command":"python -m mac compile <mapping.yaml> --target python --out <path>"},
+    {"type":"cli","command":"python -m mac evidence-bundle <mapping.yaml>"}
+  ],
+  "safe_agent_loop": ["read README and contract", "validate", "inspect schema and coverage", "compile only when requested", "return generated paths plus evidence"],
+  "related": [
+    {"product":"interface-as-code","relationship":"consume target contract/schema"},
+    {"product":"transformation-graph","relationship":"export transformation dependencies"},
+    {"product":"reconciliation-as-code","relationship":"assure transformed outcomes"}
+  ]
+}
