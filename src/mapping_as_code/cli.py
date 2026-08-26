@@ -3,10 +3,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 from typing import Any
+
+import yaml
 
 from .core import diff_documents, lineage_graph, lineage_mermaid, mapping_summary, validate_document
 from .io import load_document
+from .tabular import import_tabular
 
 
 def _dump(value: Any) -> None:
@@ -62,6 +66,20 @@ def _lineage(args: argparse.Namespace) -> int:
     return 0
 
 
+def _import(args: argparse.Namespace) -> int:
+    document = import_tabular(args.file, value_maps_path=args.value_maps)
+    if args.format == "json":
+        text = json.dumps(document, indent=2, sort_keys=False, ensure_ascii=False) + "\n"
+    else:
+        text = yaml.safe_dump(document, sort_keys=False, allow_unicode=True)
+    if args.output:
+        Path(args.output).write_text(text, encoding="utf-8")
+        print(args.output)
+    else:
+        print(text, end="")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="map-code", description="Compile and govern enterprise mappings.")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -81,6 +99,13 @@ def build_parser() -> argparse.ArgumentParser:
     lineage.add_argument("file")
     lineage.add_argument("--format", choices=("json", "mermaid"), default="json")
     lineage.set_defaults(func=_lineage)
+
+    importer = sub.add_parser("import", help="Convert CSV/XLSX mapping workbooks to canonical Mapping as Code")
+    importer.add_argument("file")
+    importer.add_argument("--value-maps", help="Optional CSV with map,source,target columns")
+    importer.add_argument("--format", choices=("yaml", "json"), default="yaml")
+    importer.add_argument("--output", "-o")
+    importer.set_defaults(func=_import)
     return parser
 
 
