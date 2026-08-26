@@ -17,6 +17,7 @@ from .graph_exports import lineage_cypher, lineage_graphml
 from .interface_binding import bind_interface_contract
 from .io import load_document
 from .review import review_markdown, review_report
+from .sarif import sarif_report
 from .tabular import ImportErrorDetail, import_rows, import_tabular
 
 __all__ = [
@@ -42,6 +43,7 @@ __all__ = [
     "release_bundle",
     "review_markdown",
     "review_report",
+    "sarif_report",
     "to_enterprise_change_graph",
     "to_enterprise_change_transition",
     "to_reconciliation",
