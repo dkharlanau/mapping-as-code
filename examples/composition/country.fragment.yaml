@@ -1,0 +1,25 @@
+fragment_version: 1
+fields:
+  - id: country
+    source:
+      field: country
+    target:
+      field: Country
+    transform:
+      type: lookup
+      reference: iso-country
+    rules:
+      required: true
+    business:
+      owner: master-data
+      criticality: high
+      rationale: Normalize legacy country values.
+value_maps:
+  iso-country:
+    DE: DE
+    USA: US
+required_fields:
+  source:
+    - country
+  target:
+    - Country
