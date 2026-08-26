@@ -15,6 +15,7 @@ requirements:
 quality:
   minimum_score: 85
   max_warnings: 3
+  max_score_regression: 2
 
 breaking_changes:
   removed: error
