@@ -105,6 +105,20 @@ jobs:
             --output /tmp/reconciliation.yaml
       - name: Exercise Visual Workbench projection
         run: map-code project examples/customer-master.yaml --target visual-workbench --format markdown --output /tmp/mapping-visual.md
+      - name: Build complete ecosystem evidence bundle
+        run: |
+          map-code ecosystem-bundle examples/customer-master-v2.yaml \
+            --policy policies/migration-pragmatic.yaml \
+            --baseline examples/customer-master.yaml \
+            --interface-file examples/customer-interface.yaml \
+            --mapping-uri mappings/customer-master-v2.yaml \
+            --revision ci-test \
+            --source-file legacy.csv \
+            --target-file s4.csv \
+            --source-key customer_id \
+            --target-key BusinessPartner \
+            --output /tmp/ecosystem-bundle.json
+          test -s /tmp/ecosystem-bundle.json
       - name: Build distribution
         run: python -m build
 
