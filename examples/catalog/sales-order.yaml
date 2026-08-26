@@ -1,0 +1,20 @@
+schema_version: "0.1"
+mapping:
+  id: sales-order-integration
+  title: Sales order interface mapping
+  description: Canonical order payload fields to S4 sales order input.
+  source:
+    system: order-platform
+    object: sales-order
+  target:
+    system: s4hana
+    object: sales-order
+  fields:
+    - id: external-order-id
+      source: {field: order_id}
+      target: {field: PurchaseOrderByCustomer}
+      transform: {type: copy}
+      business:
+        owner: order-management
+        criticality: high
+        rationale: External order correlation key.
