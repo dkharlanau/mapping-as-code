@@ -9,6 +9,7 @@ from .adapters import (
 from .annotations import github_annotations
 from .artifacts import catalog_html, catalog_markdown, release_bundle, traceability_matrix
 from .change_projection import to_enterprise_change_transition
+from .composition import CompositionError, compose_manifest
 from .contracts import TARGET_CONTRACTS
 from .core import Diagnostic, diff_documents, lineage_graph, lineage_mermaid, validate_document
 from .ecosystem import ecosystem_bundle
@@ -21,6 +22,7 @@ from .sarif import sarif_report
 from .tabular import ImportErrorDetail, import_rows, import_tabular
 
 __all__ = [
+    "CompositionError",
     "Diagnostic",
     "ImportErrorDetail",
     "TARGET_CONTRACTS",
@@ -28,6 +30,7 @@ __all__ = [
     "breaking_change_report",
     "catalog_html",
     "catalog_markdown",
+    "compose_manifest",
     "diff_documents",
     "ecosystem_bundle",
     "github_annotations",
