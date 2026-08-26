@@ -8,6 +8,12 @@ from typing import Any
 
 import yaml
 
+from .adapters import (
+    to_enterprise_change_graph,
+    to_reconciliation,
+    to_transformation_graph,
+    to_visual_workbench,
+)
 from .core import diff_documents, lineage_graph, lineage_mermaid, mapping_summary, validate_document
 from .io import load_document
 from .tabular import import_tabular
@@ -15,6 +21,20 @@ from .tabular import import_tabular
 
 def _dump(value: Any) -> None:
     print(json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False))
+
+
+def _serialize(value: Any, format_name: str) -> str:
+    if format_name == "json":
+        return json.dumps(value, indent=2, sort_keys=False, ensure_ascii=False) + "\n"
+    return yaml.safe_dump(value, sort_keys=False, allow_unicode=True)
+
+
+def _write(text: str, output: str | None) -> None:
+    if output:
+        Path(output).write_text(text, encoding="utf-8")
+        print(output)
+    else:
+        print(text, end="")
 
 
 def _validate(args: argparse.Namespace) -> int:
@@ -68,15 +88,41 @@ def _lineage(args: argparse.Namespace) -> int:
 
 def _import(args: argparse.Namespace) -> int:
     document = import_tabular(args.file, value_maps_path=args.value_maps)
-    if args.format == "json":
-        text = json.dumps(document, indent=2, sort_keys=False, ensure_ascii=False) + "\n"
+    _write(_serialize(document, args.format), args.output)
+    return 0
+
+
+def _project(args: argparse.Namespace) -> int:
+    document = load_document(args.file)
+    if args.target == "transformation-graph":
+        result = to_transformation_graph(document)
+    elif args.target == "enterprise-change-graph":
+        result = to_enterprise_change_graph(document)
+    elif args.target == "visual-workbench":
+        result = to_visual_workbench(document)
+    elif args.target == "reconciliation-as-code":
+        missing = [
+            name
+            for name, value in (
+                ("--source-file", args.source_file),
+                ("--target-file", args.target_file),
+                ("--source-key", args.source_key),
+                ("--target-key", args.target_key),
+            )
+            if not value
+        ]
+        if missing:
+            raise ValueError("reconciliation-as-code projection requires " + ", ".join(missing))
+        result = to_reconciliation(
+            document,
+            source_file=args.source_file,
+            target_file=args.target_file,
+            source_key=args.source_key,
+            target_key=args.target_key,
+        )
     else:
-        text = yaml.safe_dump(document, sort_keys=False, allow_unicode=True)
-    if args.output:
-        Path(args.output).write_text(text, encoding="utf-8")
-        print(args.output)
-    else:
-        print(text, end="")
+        raise ValueError(f"unsupported projection target: {args.target}")
+    _write(_serialize(result, args.format), args.output)
     return 0
 
 
@@ -106,6 +152,26 @@ def build_parser() -> argparse.ArgumentParser:
     importer.add_argument("--format", choices=("yaml", "json"), default="yaml")
     importer.add_argument("--output", "-o")
     importer.set_defaults(func=_import)
+
+    project = sub.add_parser("project", help="Project a mapping into an adjacent enterprise-as-code contract")
+    project.add_argument("file")
+    project.add_argument(
+        "--target",
+        required=True,
+        choices=(
+            "transformation-graph",
+            "reconciliation-as-code",
+            "enterprise-change-graph",
+            "visual-workbench",
+        ),
+    )
+    project.add_argument("--format", choices=("yaml", "json"), default="json")
+    project.add_argument("--output", "-o")
+    project.add_argument("--source-file")
+    project.add_argument("--target-file")
+    project.add_argument("--source-key")
+    project.add_argument("--target-key")
+    project.set_defaults(func=_project)
     return parser
 
 
