@@ -26,7 +26,7 @@ jobs:
           cache: pip
       - name: Install
         run: python -m pip install -e '.[dev]'
-      - name: Unit tests
+      - name: Unit and contract tests
         run: pytest -q
       - name: Validate reference mapping
         run: map-code validate examples/customer-master.yaml --format json
@@ -40,6 +40,30 @@ jobs:
         run: map-code diff examples/customer-master.yaml examples/customer-master-v2.yaml --format json
       - name: Exercise lineage compiler
         run: map-code lineage examples/customer-master.yaml --format mermaid
+      - name: Exercise quality score and governed report
+        run: |
+          map-code score examples/customer-master.yaml --format json
+          map-code report examples/customer-master.yaml \
+            --policy policies/migration-pragmatic.yaml \
+            --output /tmp/validation-report.json
+      - name: Prove breaking-change gate blocks unsafe revision
+        run: |
+          if map-code gate examples/customer-master.yaml examples/customer-master-v2.yaml \
+            --policy policies/enterprise-strict.yaml \
+            --output /tmp/breaking-report.json; then
+            echo "expected breaking gate to fail" >&2
+            exit 1
+          fi
+      - name: Exercise traceability and generated catalogs
+        run: |
+          map-code traceability examples/customer-master.yaml --output /tmp/traceability.json
+          map-code catalog examples/customer-master.yaml --format markdown --output /tmp/catalog.md
+          map-code catalog examples/customer-master.yaml --format html --output /tmp/catalog.html
+      - name: Build auditable release bundle
+        run: |
+          map-code bundle examples/customer-master.yaml \
+            --policy policies/migration-pragmatic.yaml \
+            --output /tmp/release-bundle.json
       - name: Exercise Transformation Graph projection
         run: map-code project examples/customer-master.yaml --target transformation-graph --output /tmp/transformation-graph.json
       - name: Exercise Enterprise Change Graph projection
