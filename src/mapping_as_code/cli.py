@@ -15,6 +15,7 @@ from .adapters import (
     to_visual_workbench,
 )
 from .core import diff_documents, lineage_graph, lineage_mermaid, mapping_summary, validate_document
+from .governance import breaking_change_report, quality_scorecard, validation_report
 from .io import load_document
 from .tabular import import_tabular
 
@@ -38,6 +39,10 @@ def _write(text: str, output: str | None) -> None:
         print(output)
     else:
         print(text, end="")
+
+
+def _load_policy(path: str | None) -> dict[str, Any] | None:
+    return load_document(path) if path else None
 
 
 def _validate(args: argparse.Namespace) -> int:
@@ -93,6 +98,33 @@ def _import(args: argparse.Namespace) -> int:
     document = import_tabular(args.file, value_maps_path=args.value_maps)
     _write(_serialize(document, args.format), args.output)
     return 0
+
+
+def _score(args: argparse.Namespace) -> int:
+    result = quality_scorecard(load_document(args.file))
+    if args.format == "json":
+        _dump(result)
+    else:
+        print(f'{result["score"]:.2f}/{result["maximum"]:.0f}')
+        for name, value in result["dimensions"].items():
+            print(f"{name}: {value:.2f}")
+    return 0
+
+
+def _report(args: argparse.Namespace) -> int:
+    result = validation_report(load_document(args.file), _load_policy(args.policy))
+    _write(_serialize(result, args.format), args.output)
+    return 0 if result["valid"] else 1
+
+
+def _gate(args: argparse.Namespace) -> int:
+    result = breaking_change_report(
+        load_document(args.old),
+        load_document(args.new),
+        _load_policy(args.policy),
+    )
+    _write(_serialize(result, args.format), args.output)
+    return 0 if result["passed"] else 1
 
 
 def _project(args: argparse.Namespace) -> int:
@@ -155,6 +187,26 @@ def build_parser() -> argparse.ArgumentParser:
     importer.add_argument("--format", choices=("yaml", "json"), default="yaml")
     importer.add_argument("--output", "-o")
     importer.set_defaults(func=_import)
+
+    score = sub.add_parser("score", help="Calculate a transparent mapping quality score")
+    score.add_argument("file")
+    score.add_argument("--format", choices=("text", "json"), default="text")
+    score.set_defaults(func=_score)
+
+    report = sub.add_parser("report", help="Generate a policy-aware machine-readable validation report")
+    report.add_argument("file")
+    report.add_argument("--policy")
+    report.add_argument("--format", choices=("yaml", "json"), default="json")
+    report.add_argument("--output", "-o")
+    report.set_defaults(func=_report)
+
+    gate = sub.add_parser("gate", help="Fail when a mapping revision violates breaking-change policy")
+    gate.add_argument("old")
+    gate.add_argument("new")
+    gate.add_argument("--policy")
+    gate.add_argument("--format", choices=("yaml", "json"), default="json")
+    gate.add_argument("--output", "-o")
+    gate.set_defaults(func=_gate)
 
     project = sub.add_parser("project", help="Project a mapping into an adjacent enterprise-as-code contract")
     project.add_argument("file")
