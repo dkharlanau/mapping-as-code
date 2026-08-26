@@ -26,7 +26,10 @@ def _dump(value: Any) -> None:
 def _serialize(value: Any, format_name: str) -> str:
     if format_name == "json":
         return json.dumps(value, indent=2, sort_keys=False, ensure_ascii=False) + "\n"
-    return yaml.safe_dump(value, sort_keys=False, allow_unicode=True)
+    yaml_text = yaml.safe_dump(value, sort_keys=False, allow_unicode=True)
+    if format_name == "markdown":
+        return f"---\n{yaml_text}---\n"
+    return yaml_text
 
 
 def _write(text: str, output: str | None) -> None:
@@ -165,7 +168,7 @@ def build_parser() -> argparse.ArgumentParser:
             "visual-workbench",
         ),
     )
-    project.add_argument("--format", choices=("yaml", "json"), default="json")
+    project.add_argument("--format", choices=("yaml", "json", "markdown"), default="json")
     project.add_argument("--output", "-o")
     project.add_argument("--source-file")
     project.add_argument("--target-file")
