@@ -36,6 +36,13 @@ jobs:
             --value-maps examples/customer-value-maps.csv \
             --output /tmp/imported-mapping.yaml
           map-code validate /tmp/imported-mapping.yaml --format json
+      - name: Exercise sandboxed multi-file composition
+        run: |
+          map-code compose examples/composition/customer.composition.yaml \
+            --output /tmp/composed-mapping.yaml \
+            --report-output /tmp/composition-report.json
+          map-code validate /tmp/composed-mapping.yaml --format json
+          test -s /tmp/composition-report.json
       - name: Exercise semantic diff
         run: map-code diff examples/customer-master.yaml examples/customer-master-v2.yaml --format json
       - name: Exercise lineage exports
@@ -52,6 +59,10 @@ jobs:
           map-code report examples/customer-master.yaml \
             --policy policies/migration-pragmatic.yaml \
             --output /tmp/validation-report.json
+          map-code sarif examples/customer-master.yaml \
+            --policy policies/migration-pragmatic.yaml \
+            --output /tmp/governance.sarif
+          test -s /tmp/governance.sarif
       - name: Prove breaking-change gate blocks unsafe revision
         run: |
           if map-code gate examples/customer-master.yaml examples/customer-master-v2.yaml \
@@ -142,4 +153,5 @@ jobs:
           test -s "${{ steps.mapping-governance.outputs.validation-report }}"
           test -s "${{ steps.mapping-governance.outputs.review-report }}"
           test -s "${{ steps.mapping-governance.outputs.summary }}"
+          test -s "${{ steps.mapping-governance.outputs.sarif-report }}"
           test -s "${{ steps.mapping-governance.outputs.release-bundle }}"
