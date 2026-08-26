@@ -1,0 +1,20 @@
+schema_version: "0.1"
+mapping:
+  id: customer-master
+  title: Customer master migration
+  description: Legacy customer master fields to S4 business partner.
+  source:
+    system: legacy-erp
+    object: customer
+  target:
+    system: s4hana
+    object: business-partner
+  fields:
+    - id: customer-id
+      source: {field: KUNNR}
+      target: {field: BusinessPartner}
+      transform: {type: copy}
+      business:
+        owner: master-data
+        criticality: critical
+        rationale: Cross-system identity.
