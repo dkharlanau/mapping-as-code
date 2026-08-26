@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dkharlanau.github.io/mapping-as-code/schema/validation-report.schema.json",
+  "title": "Mapping as Code validation report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["report_version", "mapping_id", "document_sha256", "policy", "summary", "quality", "diagnostics", "gates", "valid"],
+  "properties": {
+    "report_version": {"const": 1},
+    "mapping_id": {"type": ["string", "null"]},
+    "document_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "policy": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {"name": {"type": "string"}, "version": {"const": 1}},
+      "additionalProperties": false
+    },
+    "summary": {"type": "object"},
+    "quality": {
+      "type": "object",
+      "required": ["score", "maximum", "dimensions", "counts"],
+      "properties": {
+        "score": {"type": "number", "minimum": 0, "maximum": 100},
+        "maximum": {"const": 100.0},
+        "dimensions": {"type": "object", "additionalProperties": {"type": "number"}},
+        "counts": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}}
+      },
+      "additionalProperties": false
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "message", "path", "severity"],
+        "properties": {
+          "code": {"type": "string"},
+          "message": {"type": "string"},
+          "path": {"type": "string"},
+          "severity": {"enum": ["error", "warning", "info"]}
+        },
+        "additionalProperties": false
+      }
+    },
+    "gates": {"type": "object"},
+    "valid": {"type": "boolean"}
+  }
+}
