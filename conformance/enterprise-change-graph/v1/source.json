@@ -1,0 +1,8 @@
+{
+  "project": "dkharlanau/enterprise-change-graph",
+  "contract": "schema/enterprise-change-graph.schema.json",
+  "version": 1,
+  "source_blob_sha": "4b87b70f6d158c54e0daa4bc3eeda4f618eb9e94",
+  "source_url": "https://github.com/dkharlanau/enterprise-change-graph/blob/main/schema/enterprise-change-graph.schema.json",
+  "purpose": "Retained target contract for deterministic mapping-transition adapter conformance tests."
+}
