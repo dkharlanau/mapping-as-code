@@ -16,18 +16,17 @@
 - [x] reference enterprise mapping revisions
 - [x] unit tests and CI build gate
 
-## P0 — spreadsheet bridge
+## Shipped — v0.2 spreadsheet bridge
 
-The fastest path from existing project artifacts into Mapping as Code.
+- [x] CSV mapping workbook import
+- [x] XLSX/XLSM mapping workbook import
+- [x] `ValueMaps` sheet and companion CSV support
+- [x] deterministic normalization of empty cells and booleans
+- [x] generated canonical YAML/JSON
+- [x] diagnostics for ambiguous/inconsistent workbook metadata
+- [x] CI exercise of import → validate flow
 
-- [ ] CSV mapping workbook import
-- [ ] XLSX mapping workbook import
-- [ ] value-map sheet/import support
-- [ ] deterministic normalization of empty cells and booleans
-- [ ] generated canonical YAML
-- [ ] import diagnostics for ambiguous/inconsistent workbook metadata
-
-## P1 — governance and generated evidence
+## P0 — governance and generated evidence
 
 - [ ] configurable policy packs for critical fields, ownership, and rationale
 - [ ] mapping quality scorecard
@@ -37,7 +36,7 @@ The fastest path from existing project artifacts into Mapping as Code.
 - [ ] breaking-change policy and CI gate
 - [ ] release bundle with source hash and validation evidence
 
-## P1 — interoperability
+## P0 — interoperability
 
 - [ ] Transformation Graph adapter
 - [ ] Reconciliation as Code projection
@@ -46,7 +45,7 @@ The fastest path from existing project artifacts into Mapping as Code.
 - [ ] Interface as Code field-contract references
 - [ ] portable GraphML/Cypher export where useful
 
-## P2 — scale and enterprise ingestion
+## P1 — scale and enterprise ingestion
 
 - [ ] multi-file mapping composition
 - [ ] mapping namespaces and reusable fragments
