@@ -1,64 +1,154 @@
 # Mapping as Code
 
-Versionable enterprise mapping specifications with validation, lineage, change analysis, and generated tests.
+**Versionable enterprise mapping contracts with deterministic validation, change analysis, and lineage.**
 
-## Problem
+Mapping documents usually begin in Excel and then spread across tickets, emails, migration workbooks, interface specifications, test evidence, and implementation code. That makes a simple question surprisingly difficult: **what exactly is mapped, why, what changed, and is the mapping complete?**
 
-Enterprise mappings are often scattered across Excel files, documents, emails, and project-specific templates. They are difficult to version, review, compare, validate, test, and trace.
+Mapping as Code turns that intent into a small, reviewable, machine-readable contract that can live in Git and participate in CI.
 
-## Core idea
+## What works now
 
-Represent mappings as structured, versionable definitions instead of scattered spreadsheets and documents.
+v0.1 is an executable Python package and CLI. It can:
 
-## Example
+- load YAML or JSON mapping specifications;
+- validate mapping structure and semantic rules;
+- detect duplicate mapping IDs and conflicting target assignments;
+- validate lookup/value-map references;
+- enforce required target-field coverage;
+- flag unused required source fields;
+- compare two mapping revisions by stable business mapping ID;
+- produce field-level lineage as JSON or Mermaid;
+- emit deterministic JSON suitable for CI, agents, and adjacent graph tools.
 
-```yaml
-source:
-  system: legacy
-  object: customer
-  field: country
+## Quick start
 
-target:
-  system: s4
-  object: business-partner
-  field: country
-
-transform:
-  type: lookup
-  reference: country-map
-
-rules:
-  required: true
+```bash
+python -m pip install -e .
+map-code validate examples/customer-master.yaml
 ```
 
-## Initial scope
+Example output:
 
-- Excel/CSV mapping import
-- canonical mapping model
-- coverage validation
-- conflicting mapping detection
-- duplicate mapping detection
-- missing target/source rules
-- value-map validation
-- version diff
-- lineage visualization
-- generated tests
-- Markdown/HTML documentation
+```text
+legacy-customer-to-s4-business-partner: 4 mappings, 100% required-target coverage
+OK: no diagnostics
+```
 
-## Long-term direction
+Compare revisions:
 
-Become an open mapping specification format and compiler for enterprise transformation projects.
+```bash
+map-code diff \
+  examples/customer-master.yaml \
+  examples/customer-master-v2.yaml
+```
+
+Generate lineage:
+
+```bash
+map-code lineage examples/customer-master.yaml --format mermaid
+```
+
+Machine-facing output is available with `--format json`.
+
+## A mapping contract
+
+```yaml
+schema_version: "0.1"
+
+mapping:
+  id: legacy-customer-to-s4-business-partner
+
+  source:
+    system: legacy-erp
+    object: customer
+    required_fields: [customer_id, country]
+
+  target:
+    system: s4hana
+    object: business-partner
+    required_fields: [BusinessPartner, Country]
+
+  fields:
+    - id: customer-id
+      source:
+        field: customer_id
+      target:
+        field: BusinessPartner
+      transform:
+        type: copy
+      rules:
+        required: true
+
+    - id: customer-country
+      source:
+        field: country
+      target:
+        field: Country
+      transform:
+        type: lookup
+        reference: iso-country
+
+value_maps:
+  iso-country:
+    DE: DE
+    US: US
+```
+
+The stable field mapping `id` matters: source/target names can change while the engine can still recognize that the same business mapping rule was modified.
+
+## Why this is useful
+
+### Migration and transformation projects
+
+Keep field mappings reviewable, diffable, testable, and linked to required target coverage instead of treating the workbook as an opaque attachment.
+
+### Integration design
+
+Represent source-to-target intent separately from runtime middleware. A mapping can be reviewed before implementation and reused for impact analysis later.
+
+### Data governance
+
+Capture ownership, rationale, criticality, rules, and value maps close to the actual field relationship.
+
+### Pull-request governance
+
+A mapping change becomes a semantic diff: changed source, target, transformation, validation rule, or business meaning rather than a line-level spreadsheet comparison.
+
+### Agent context
+
+Agents can consume the normalized JSON output instead of reverse-engineering an Excel workbook every time they need mapping context.
+
+## CLI
+
+```text
+map-code validate <file> [--format text|json]
+map-code diff <old> <new> [--format text|json]
+map-code lineage <file> [--format json|mermaid]
+```
+
+Validation errors return exit code `1`, so mapping quality can be used directly as a CI gate.
+
+## Specification
+
+- [v0.1 semantics](docs/specification.md)
+- [JSON Schema](schema/mapping.schema.json)
+- [Reference mapping](examples/customer-master.yaml)
+- [Changed revision](examples/customer-master-v2.yaml)
+- [Roadmap](ROADMAP.md)
 
 ## Design principles
 
-- versionable
-- portable
-- machine-readable
-- deterministic-first
-- visual where useful
-- Git-friendly
-- vendor-neutral where practical
-- interoperable with enterprise tools
+- versionable and Git-friendly;
+- deterministic before probabilistic;
+- portable and vendor-neutral where practical;
+- safe to inspect without executing arbitrary mapping expressions;
+- business semantics and technical lineage in the same contract;
+- machine-readable outputs first, visual views where useful;
+- interoperable with transformation, reconciliation, change-impact, and visualization tooling.
+
+## Boundary
+
+Mapping as Code is **not an ETL engine**. It defines and governs mapping intent. Execution runtimes can consume the contract; other tools can use it for transformation planning, reconciliation, impact analysis, documentation, and visual explanation.
 
 ## Related projects
 
@@ -71,7 +161,8 @@ Become an open mapping specification format and compiler for enterprise transfor
 - [Data Relationship Map](https://github.com/dkharlanau/data-relationship-map)
 - [Cutover Graph](https://github.com/dkharlanau/cutover-graph)
 - [Project Evidence Graph](https://github.com/dkharlanau/project-evidence-graph)
+- [Visual Workbench](https://github.com/dkharlanau/visual-workbench)
 
 ## Status
 
-Planning.
+**Active — working v0.1 core.** Validation, semantic diff, lineage, examples, tests, packaging, and CI are implemented. The next product loop focuses on spreadsheet ingestion, generated mapping documentation, policy packs, and cross-repository contracts.
