@@ -23,7 +23,7 @@ inputs:
     required: false
     default: ""
   output-dir:
-    description: Directory for validation, review, summary, and release evidence.
+    description: Directory for validation, review, summary, SARIF, and release evidence.
     required: false
     default: .mapping-as-code
   python-version:
@@ -41,6 +41,9 @@ outputs:
   summary:
     description: Path to the generated Markdown summary.
     value: ${{ steps.govern.outputs.summary }}
+  sarif-report:
+    description: Path to file-level SARIF governance evidence.
+    value: ${{ steps.govern.outputs.sarif_report }}
   release-bundle:
     description: Path to the auditable mapping release bundle.
     value: ${{ steps.govern.outputs.release_bundle }}
@@ -79,6 +82,7 @@ runs:
         VALIDATION_REPORT="$OUTPUT_DIR/validation-report.json"
         REVIEW_REPORT="$OUTPUT_DIR/review-report.json"
         SUMMARY="$OUTPUT_DIR/summary.md"
+        SARIF_REPORT="$OUTPUT_DIR/governance.sarif"
         RELEASE_BUNDLE="$OUTPUT_DIR/release-bundle.json"
         BASELINE_FILE=""
 
@@ -86,6 +90,7 @@ runs:
         map-code report "$MAPPING_PATH" --policy "$POLICY_PATH" --output "$VALIDATION_REPORT"
         VALIDATION_STATUS=$?
         map-code annotations "$MAPPING_PATH" --policy "$POLICY_PATH"
+        map-code sarif "$MAPPING_PATH" --policy "$POLICY_PATH" --artifact-uri "$MAPPING_PATH" --output "$SARIF_REPORT"
         set -e
 
         if [ -n "$BASELINE_PATH_INPUT" ]; then
@@ -120,8 +125,11 @@ runs:
             "",
         ]
         if report["diagnostics"]:
-            for item in report["diagnostics"]:
+            for item in report["diagnostics"][:20]:
                 lines.append(f"- **{item['severity'].upper()}** `{item['code']}` — {item['message']}")
+            remaining = len(report["diagnostics"]) - 20
+            if remaining > 0:
+                lines.append(f"- … **{remaining} more** not shown in the compact summary.")
         else:
             lines.append("No diagnostics.")
         lines.extend(["", f"Current SHA: `{report['document_sha256']}`", ""])
@@ -137,6 +145,7 @@ runs:
         echo "validation_report=$VALIDATION_REPORT" >> "$GITHUB_OUTPUT"
         echo "review_report=$REVIEW_REPORT" >> "$GITHUB_OUTPUT"
         echo "summary=$SUMMARY" >> "$GITHUB_OUTPUT"
+        echo "sarif_report=$SARIF_REPORT" >> "$GITHUB_OUTPUT"
         echo "release_bundle=$RELEASE_BUNDLE" >> "$GITHUB_OUTPUT"
 
         if [ "$REVIEW_STATUS" -ne 0 ]; then
