@@ -18,6 +18,7 @@ from .artifacts import catalog_html, catalog_markdown, release_bundle, source_sh
 from .core import diff_documents, lineage_graph, lineage_mermaid, mapping_summary, validate_document
 from .governance import breaking_change_report, quality_scorecard, validation_report
 from .io import load_document
+from .review import review_markdown, review_report
 from .tabular import import_tabular
 
 
@@ -128,8 +129,22 @@ def _gate(args: argparse.Namespace) -> int:
     return 0 if result["passed"] else 1
 
 
+def _review(args: argparse.Namespace) -> int:
+    result = review_report(
+        load_document(args.old),
+        load_document(args.new),
+        _load_policy(args.policy),
+    )
+    if args.format == "markdown":
+        _write(review_markdown(result), args.output)
+    else:
+        _write(_serialize(result, args.format), args.output)
+    return 0 if result["passed"] else 1
+
+
 def _traceability(args: argparse.Namespace) -> int:
-    result = {"mapping_id": mapping_summary(load_document(args.file)).get("mapping_id"), "rows": traceability_matrix(load_document(args.file))}
+    document = load_document(args.file)
+    result = {"mapping_id": mapping_summary(document).get("mapping_id"), "rows": traceability_matrix(document)}
     _write(_serialize(result, args.format), args.output)
     return 0
 
@@ -234,6 +249,14 @@ def build_parser() -> argparse.ArgumentParser:
     gate.add_argument("--format", choices=("yaml", "json"), default="json")
     gate.add_argument("--output", "-o")
     gate.set_defaults(func=_gate)
+
+    review = sub.add_parser("review", help="Generate one PR-oriented validation and semantic-change review")
+    review.add_argument("old")
+    review.add_argument("new")
+    review.add_argument("--policy")
+    review.add_argument("--format", choices=("yaml", "json", "markdown"), default="json")
+    review.add_argument("--output", "-o")
+    review.set_defaults(func=_review)
 
     traceability = sub.add_parser("traceability", help="Generate a field-level traceability matrix")
     traceability.add_argument("file")
