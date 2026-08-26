@@ -1,0 +1,8 @@
+{
+  "project": "dkharlanau/visual-workbench",
+  "contract": "schemas/visual-workbench.schema.json",
+  "version": 1,
+  "source_blob_sha": "b9b6211977d73b69786b4199a5e06a88d7f3634b",
+  "source_url": "https://github.com/dkharlanau/visual-workbench/blob/main/schemas/visual-workbench.schema.json",
+  "purpose": "Retained target contract for deterministic adapter conformance tests."
+}
