@@ -14,6 +14,7 @@ from .adapters import (
     to_transformation_graph,
     to_visual_workbench,
 )
+from .annotations import github_annotations
 from .artifacts import catalog_html, catalog_markdown, release_bundle, source_sha256, traceability_matrix
 from .core import diff_documents, lineage_graph, lineage_mermaid, mapping_summary, validate_document
 from .governance import breaking_change_report, quality_scorecard, validation_report
@@ -117,6 +118,14 @@ def _report(args: argparse.Namespace) -> int:
     result = validation_report(load_document(args.file), _load_policy(args.policy))
     _write(_serialize(result, args.format), args.output)
     return 0 if result["valid"] else 1
+
+
+def _annotations(args: argparse.Namespace) -> int:
+    document = load_document(args.file)
+    policy = _load_policy(args.policy)
+    for line in github_annotations(document, file_path=args.annotation_file or args.file, policy=policy):
+        print(line)
+    return 0 if validation_report(document, policy)["valid"] else 1
 
 
 def _gate(args: argparse.Namespace) -> int:
@@ -241,6 +250,12 @@ def build_parser() -> argparse.ArgumentParser:
     report.add_argument("--format", choices=("yaml", "json"), default="json")
     report.add_argument("--output", "-o")
     report.set_defaults(func=_report)
+
+    annotations = sub.add_parser("annotations", help="Emit GitHub workflow annotations for governance diagnostics")
+    annotations.add_argument("file")
+    annotations.add_argument("--policy")
+    annotations.add_argument("--annotation-file", help="File label used in GitHub annotations; defaults to the mapping path")
+    annotations.set_defaults(func=_annotations)
 
     gate = sub.add_parser("gate", help="Fail when a mapping revision violates breaking-change policy")
     gate.add_argument("old")
