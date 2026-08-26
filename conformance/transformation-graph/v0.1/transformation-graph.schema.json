@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dkharlanau.github.io/transformation-graph/schema/transformation-graph.schema.json",
+  "title": "Transformation Graph",
+  "description": "Canonical v0.1 project-scoped enterprise transformation graph.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "project", "nodes", "edges"],
+  "properties": {
+    "version": {"const": "0.1"},
+    "project": {"type": "object", "additionalProperties": true, "required": ["id", "name"], "properties": {"id": {"type": "string", "minLength": 1, "pattern": "^[a-z0-9][a-z0-9._-]*$"}, "name": {"type": "string", "minLength": 1}, "description": {"type": "string"}}},
+    "nodes": {"type": "array", "minItems": 1, "items": {"type": "object", "additionalProperties": false, "required": ["id", "type", "title"], "properties": {"id": {"type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"}, "type": {"oneOf": [{"enum": ["process","process_step","system","business_object","data_object","field","interface","mapping","rule","requirement","test","change","owner","decision","evidence"]}, {"type": "string", "pattern": "^x-[a-z0-9][a-z0-9._-]*$"}]}, "title": {"type": "string", "minLength": 1}, "description": {"type": "string"}, "tags": {"type": "array", "items": {"type": "string"}}, "attributes": {"type": "object"}}}},
+    "edges": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["from", "to", "type"], "properties": {"from": {"type": "string", "minLength": 1}, "to": {"type": "string", "minLength": 1}, "type": {"type": "string", "minLength": 1, "pattern": "^[a-z][a-z0-9._-]*$"}, "label": {"type": "string"}, "attributes": {"type": "object"}}}}
+  }
+}
