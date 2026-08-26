@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dkharlanau.github.io/mapping-as-code/schema/governance-policy.schema.json",
+  "title": "Mapping as Code governance policy pack",
+  "type": "object",
+  "required": ["version", "name"],
+  "properties": {
+    "version": {"const": 1},
+    "name": {"type": "string", "minLength": 1},
+    "requirements": {
+      "type": "object",
+      "properties": {
+        "title_required": {"type": "boolean"},
+        "criticality_required": {"type": "boolean"},
+        "owner_required_for": {"$ref": "#/$defs/criticalities"},
+        "rationale_required_for": {"$ref": "#/$defs/criticalities"}
+      },
+      "additionalProperties": false
+    },
+    "quality": {
+      "type": "object",
+      "properties": {
+        "minimum_score": {"type": "number", "minimum": 0, "maximum": 100},
+        "max_warnings": {"type": ["integer", "null"], "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "breaking_changes": {
+      "type": "object",
+      "properties": {
+        "removed": {"$ref": "#/$defs/severity"},
+        "source": {"$ref": "#/$defs/severity"},
+        "target": {"$ref": "#/$defs/severity"},
+        "transform": {"$ref": "#/$defs/severity"},
+        "rules": {"$ref": "#/$defs/severity"},
+        "business": {"$ref": "#/$defs/severity"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "criticalities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"enum": ["low", "medium", "high", "critical"]}
+    },
+    "severity": {"enum": ["ignore", "info", "warning", "error"]}
+  }
+}
