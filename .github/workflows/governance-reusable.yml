@@ -1,0 +1,89 @@
+name: Mapping Governance
+
+on:
+  workflow_call:
+    inputs:
+      mapping-path:
+        description: Mapping as Code YAML/JSON path in the caller repository.
+        required: true
+        type: string
+      policy-path:
+        description: Optional policy path in the caller repository.
+        required: false
+        type: string
+        default: ""
+      baseline-ref:
+        description: Git ref containing the retained baseline.
+        required: false
+        type: string
+        default: origin/main
+      output-dir:
+        description: Evidence output directory.
+        required: false
+        type: string
+        default: .mapping-as-code
+      comment-on-pr:
+        description: Create or update a PR comment with the mapping review summary.
+        required: false
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  govern:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout caller repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Mapping as Code governance
+        id: governance
+        uses: dkharlanau/mapping-as-code@main
+        with:
+          mapping-path: ${{ inputs.mapping-path }}
+          policy-path: ${{ inputs.policy-path }}
+          baseline-ref: ${{ inputs.baseline-ref }}
+          output-dir: ${{ inputs.output-dir }}
+
+      - name: Upload mapping governance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mapping-governance-evidence
+          path: ${{ inputs.output-dir }}
+          if-no-files-found: warn
+
+      - name: Create or update PR review comment
+        if: ${{ always() && inputs.comment-on-pr && github.event_name == 'pull_request' }}
+        uses: actions/github-script@v7
+        env:
+          SUMMARY_PATH: ${{ steps.governance.outputs.summary }}
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- mapping-as-code-governance -->';
+            const summaryPath = process.env.SUMMARY_PATH;
+            const summary = summaryPath && fs.existsSync(summaryPath)
+              ? fs.readFileSync(summaryPath, 'utf8')
+              : '## Mapping as Code review\n\nGovernance did not produce a summary artifact.';
+            const body = `${marker}\n${summary}`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner, repo, issue_number, per_page: 100
+            });
+            const existing = comments.find(comment =>
+              comment.user?.type === 'Bot' && comment.body?.includes(marker)
+            );
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner, repo, comment_id: existing.id, body
+              });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
