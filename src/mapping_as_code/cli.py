@@ -18,6 +18,7 @@ from .annotations import github_annotations
 from .artifacts import catalog_html, catalog_markdown, release_bundle, source_sha256, traceability_matrix
 from .change_projection import to_enterprise_change_transition
 from .core import diff_documents, lineage_graph, lineage_mermaid, mapping_summary, validate_document
+from .ecosystem import ecosystem_bundle
 from .governance import breaking_change_report, quality_scorecard, validation_report
 from .graph_exports import lineage_cypher, lineage_graphml
 from .interface_binding import bind_interface_contract
@@ -49,6 +50,21 @@ def _write(text: str, output: str | None) -> None:
 
 def _load_policy(path: str | None) -> dict[str, Any] | None:
     return load_document(path) if path else None
+
+
+def _reconciliation_config(args: argparse.Namespace) -> dict[str, Any] | None:
+    values = {
+        "source_file": getattr(args, "source_file", None),
+        "target_file": getattr(args, "target_file", None),
+        "source_key": getattr(args, "source_key", None),
+        "target_key": getattr(args, "target_key", None),
+    }
+    if not any(values.values()):
+        return None
+    missing = [name for name, value in values.items() if not value]
+    if missing:
+        raise ValueError("reconciliation configuration requires " + ", ".join(missing))
+    return values
 
 
 def _validate(args: argparse.Namespace) -> int:
@@ -186,6 +202,24 @@ def _bundle(args: argparse.Namespace) -> int:
     return 0 if result["validation"]["valid"] else 1
 
 
+def _ecosystem_bundle(args: argparse.Namespace) -> int:
+    mapping = load_document(args.file)
+    result = ecosystem_bundle(
+        mapping,
+        source_name=Path(args.file).name,
+        source_hash=source_sha256(args.file),
+        policy=_load_policy(args.policy),
+        baseline=load_document(args.baseline) if args.baseline else None,
+        reconciliation=_reconciliation_config(args),
+        interface_document=load_document(args.interface_file) if args.interface_file else None,
+        mapping_uri=args.mapping_uri,
+        revision=args.revision,
+    )
+    _write(_serialize(result, args.format), args.output)
+    release = result["artifacts"]["mapping-release"]["document"]
+    return 0 if release["validation"]["valid"] else 1
+
+
 def _bind_interface(args: argparse.Namespace) -> int:
     result = bind_interface_contract(
         load_document(args.interface_file),
@@ -217,29 +251,29 @@ def _project(args: argparse.Namespace) -> int:
     elif args.target == "visual-workbench":
         result = to_visual_workbench(document)
     elif args.target == "reconciliation-as-code":
-        missing = [
-            name
-            for name, value in (
-                ("--source-file", args.source_file),
-                ("--target-file", args.target_file),
-                ("--source-key", args.source_key),
-                ("--target-key", args.target_key),
+        config = _reconciliation_config(args)
+        if config is None:
+            raise ValueError(
+                "reconciliation-as-code projection requires --source-file, --target-file, --source-key, --target-key"
             )
-            if not value
-        ]
-        if missing:
-            raise ValueError("reconciliation-as-code projection requires " + ", ".join(missing))
         result = to_reconciliation(
             document,
-            source_file=args.source_file,
-            target_file=args.target_file,
-            source_key=args.source_key,
-            target_key=args.target_key,
+            source_file=str(config["source_file"]),
+            target_file=str(config["target_file"]),
+            source_key=config["source_key"],
+            target_key=config["target_key"],
         )
     else:
         raise ValueError(f"unsupported projection target: {args.target}")
     _write(_serialize(result, args.format), args.output)
     return 0
+
+
+def _add_reconciliation_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--source-file")
+    parser.add_argument("--target-file")
+    parser.add_argument("--source-key")
+    parser.add_argument("--target-key")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -324,6 +358,18 @@ def build_parser() -> argparse.ArgumentParser:
     bundle.add_argument("--output", "-o")
     bundle.set_defaults(func=_bundle)
 
+    ecosystem = sub.add_parser("ecosystem-bundle", help="Build one auditable bundle of Mapping as Code and adjacent projections")
+    ecosystem.add_argument("file")
+    ecosystem.add_argument("--policy")
+    ecosystem.add_argument("--baseline")
+    ecosystem.add_argument("--interface-file")
+    ecosystem.add_argument("--mapping-uri")
+    ecosystem.add_argument("--revision")
+    _add_reconciliation_args(ecosystem)
+    ecosystem.add_argument("--format", choices=("yaml", "json"), default="json")
+    ecosystem.add_argument("--output", "-o")
+    ecosystem.set_defaults(func=_ecosystem_bundle)
+
     bind_interface = sub.add_parser("bind-interface", help="Bind a mapping artifact to an existing Interface as Code v1.0 contract")
     bind_interface.add_argument("interface_file")
     bind_interface.add_argument("mapping_file")
@@ -356,10 +402,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     project.add_argument("--format", choices=("yaml", "json", "markdown"), default="json")
     project.add_argument("--output", "-o")
-    project.add_argument("--source-file")
-    project.add_argument("--target-file")
-    project.add_argument("--source-key")
-    project.add_argument("--target-key")
+    _add_reconciliation_args(project)
     project.set_defaults(func=_project)
     return parser
 
