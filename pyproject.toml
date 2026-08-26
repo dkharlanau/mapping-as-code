@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mapping-as-code"
-version = "0.1.0"
-description = "Versionable enterprise mapping specifications with deterministic validation, diff, and lineage."
+version = "0.2.0"
+description = "Versionable enterprise mapping specifications with deterministic validation, diff, lineage, and workbook import."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {file = "LICENSE"}
@@ -18,7 +18,8 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "build>=1.2"]
+excel = ["openpyxl>=3.1"]
+dev = ["pytest>=8", "build>=1.2", "openpyxl>=3.1"]
 
 [project.scripts]
 map-code = "mapping_as_code.cli:main"
