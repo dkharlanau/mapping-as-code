@@ -1,21 +1,49 @@
 # Roadmap
 
-## Phase 1 — Core model
+## v0.1 — Core MVP
 
-Define the canonical structured representation and its schema.
+- [x] canonical `MappingSpec` format
+- [x] JSON Schema
+- [x] semantic validator
+- [x] stable-ID semantic diff
+- [x] CSV import
+- [x] optional XLSX import
+- [x] Markdown documentation generator
+- [x] SAP customer mapping example
+- [x] tests and CI
 
-## Phase 2 — Validation
+## v0.2 — Project-workbook ingestion
 
-Add deterministic validation rules and test fixtures.
+- [ ] configurable column aliases instead of one fixed spreadsheet header
+- [ ] multi-sheet XLSX import
+- [ ] value-map sheet detection
+- [ ] import diagnostics with row/column references
+- [ ] canonical normalization command
 
-## Phase 3 — Visualization
+## v0.3 — Mapping quality
 
-Add human-readable visual views and generated documentation.
+- [ ] coverage rules against source/target field catalogs
+- [ ] unmapped mandatory-target detection
+- [ ] data-type compatibility checks
+- [ ] unused value-map detection
+- [ ] policy profiles for migration vs integration projects
 
-## Phase 4 — Interoperability
+## v0.4 — Generated evidence
 
-Add import/export to relevant open standards and common project formats.
+- [ ] mapping-derived test cases
+- [ ] Markdown + HTML reports
+- [ ] Mermaid/DOT lineage graphs
+- [ ] JSON impact report for pull requests and agents
+- [ ] mapping-change risk scoring
 
-## Phase 5 — Automation
+## v0.5 — Interoperability
 
-Add CLI, CI integration, and machine-facing outputs where useful.
+- [ ] pluggable import/export adapters
+- [ ] SAP-oriented workbook templates and Migration Cockpit research spike
+- [ ] interface payload mapping adapter
+- [ ] reconciliation link format
+- [ ] transformation-graph export
+
+## Non-goal
+
+Do not build a general-purpose ETL runtime. Keep the core focused on mapping specification, validation, change analysis, evidence, and exchange.

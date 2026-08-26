@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mapping-as-code"
+version = "0.1.0"
+description = "Versionable enterprise mapping specifications with validation, diffing, imports, and generated documentation."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [{name = "Dzmitryi Kharlanau"}]
+dependencies = [
+  "PyYAML>=6.0",
+  "jsonschema>=4.22",
+]
+keywords = ["data-mapping", "sap", "migration", "enterprise", "etl", "data-lineage"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+
+[project.optional-dependencies]
+excel = ["openpyxl>=3.1"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+mapcode = "mapping_as_code.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

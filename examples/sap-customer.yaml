@@ -1,0 +1,46 @@
+apiVersion: mappingascode.dev/v1alpha1
+kind: MappingSpec
+metadata:
+  name: legacy-customer-to-s4-business-partner
+  version: 1.0.0
+  description: Example customer master mapping from a legacy SAP-style extract to S/4HANA Business Partner fields.
+  owners: [data-migration]
+  tags: [sap, customer, s4hana]
+source:
+  system: LEGACY_ERP
+  object: KNA1_CUSTOMER
+  key: [KUNNR]
+target:
+  system: S4HANA
+  object: BUSINESS_PARTNER
+  key: [BusinessPartner]
+fields:
+  - id: customer-id
+    source: {path: KNA1.KUNNR}
+    target: {path: BusinessPartner}
+    transform: {type: copy}
+    constraints: {required: true}
+    description: Legacy customer number retained as the migration key.
+  - id: customer-name
+    source: {path: KNA1.NAME1}
+    target: {path: OrganizationBPName1}
+    transform: {type: copy}
+    constraints: {required: true}
+  - id: country
+    source: {path: KNA1.LAND1}
+    target: {path: Country}
+    transform:
+      type: lookup
+      reference: country-code
+    constraints: {required: true}
+  - id: source-system
+    source: {path: ''}
+    target: {path: YY1_SourceSystem}
+    transform:
+      type: constant
+      value: LEGACY_ERP
+valueMaps:
+  country-code:
+    - {from: BY, to: BY}
+    - {from: DE, to: DE}
+    - {from: UK, to: GB}

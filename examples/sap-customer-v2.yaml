@@ -1,0 +1,48 @@
+apiVersion: mappingascode.dev/v1alpha1
+kind: MappingSpec
+metadata:
+  name: legacy-customer-to-s4-business-partner
+  version: 1.1.0
+  description: Second version used to demonstrate semantic mapping diffs.
+source:
+  system: LEGACY_ERP
+  object: KNA1_CUSTOMER
+  key: [KUNNR]
+target:
+  system: S4HANA
+  object: BUSINESS_PARTNER
+  key: [BusinessPartner]
+fields:
+  - id: customer-id
+    source: {path: KNA1.KUNNR}
+    target: {path: BusinessPartner}
+    transform: {type: copy}
+    constraints: {required: true}
+  - id: customer-name
+    source: {path: KNA1.NAME1}
+    target: {path: OrganizationBPName1}
+    transform: {type: copy}
+    constraints: {required: true}
+    description: Primary organization name.
+  - id: country
+    source: {path: KNA1.LAND1}
+    target: {path: Country}
+    transform:
+      type: lookup
+      reference: country-code
+    constraints: {required: true}
+  - id: postal-code
+    source: {path: KNA1.PSTLZ}
+    target: {path: PostalCode}
+    transform: {type: copy}
+  - id: source-system
+    source: {path: ''}
+    target: {path: YY1_SourceSystem}
+    transform:
+      type: constant
+      value: LEGACY_ERP
+valueMaps:
+  country-code:
+    - {from: BY, to: BY}
+    - {from: DE, to: DE}
+    - {from: UK, to: GB}

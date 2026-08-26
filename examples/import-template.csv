@@ -1,0 +1,4 @@
+id,source,target,transform,reference,required,description
+customer-id,KNA1.KUNNR,BusinessPartner,copy,,yes,Legacy customer number
+customer-name,KNA1.NAME1,OrganizationBPName1,copy,,yes,Customer name
+country,KNA1.LAND1,Country,lookup,country-code,yes,ISO country conversion

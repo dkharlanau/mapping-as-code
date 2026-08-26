@@ -10,13 +10,27 @@ portfolio:
   sap_proof: 10
   brand_value: 10
 
-status: planning
+status: active-mvp
+version: 0.1.0
+api_version: mappingascode.dev/v1alpha1
 
 implementation:
   repository_created: true
-  implementation_status: not-started
+  implementation_status: core-mvp
   codex_fit: 5/5
   sap_access_required: false
+  cli: mapcode
+  ci: github-actions
+
+capabilities:
+  - canonical mapping specification
+  - json schema validation
+  - semantic validation
+  - mapping diff
+  - csv import
+  - optional xlsx import
+  - markdown documentation
+  - sap example
 
 principles:
   - versionable
