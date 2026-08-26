@@ -21,7 +21,8 @@
       "type": "object",
       "properties": {
         "minimum_score": {"type": "number", "minimum": 0, "maximum": 100},
-        "max_warnings": {"type": ["integer", "null"], "minimum": 0}
+        "max_warnings": {"type": ["integer", "null"], "minimum": 0},
+        "max_score_regression": {"type": ["number", "null"], "minimum": 0, "maximum": 100}
       },
       "additionalProperties": false
     },
