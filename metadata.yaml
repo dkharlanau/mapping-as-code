@@ -11,11 +11,11 @@ portfolio:
   brand_value: 10
 
 status: active
-version: 0.1.0
+version: 0.2.0
 
 implementation:
   repository_created: true
-  implementation_status: executable-core
+  implementation_status: executable-core-plus-workbook-bridge
   codex_fit: 5/5
   sap_access_required: false
   package: python
@@ -30,6 +30,9 @@ capabilities:
   - semantic-diff
   - field-lineage
   - mermaid-rendering
+  - csv-import
+  - xlsx-import
+  - workbook-value-maps
   - machine-readable-json
 
 principles:
