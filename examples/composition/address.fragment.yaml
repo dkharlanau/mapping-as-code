@@ -1,0 +1,17 @@
+fragment_version: 1
+fields:
+  - id: city
+    source:
+      field: city
+    target:
+      field: CityName
+    transform:
+      type: copy
+    business:
+      owner: master-data
+      criticality: medium
+required_fields:
+  source:
+    - city
+  target:
+    - CityName
