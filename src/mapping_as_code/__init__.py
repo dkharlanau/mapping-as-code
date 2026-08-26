@@ -9,7 +9,9 @@ from .adapters import (
 from .annotations import github_annotations
 from .artifacts import catalog_html, catalog_markdown, release_bundle, traceability_matrix
 from .change_projection import to_enterprise_change_transition
+from .contracts import TARGET_CONTRACTS
 from .core import Diagnostic, diff_documents, lineage_graph, lineage_mermaid, validate_document
+from .ecosystem import ecosystem_bundle
 from .governance import breaking_change_report, policy_diagnostics, quality_scorecard, validation_report
 from .graph_exports import lineage_cypher, lineage_graphml
 from .interface_binding import bind_interface_contract
@@ -20,11 +22,13 @@ from .tabular import ImportErrorDetail, import_rows, import_tabular
 __all__ = [
     "Diagnostic",
     "ImportErrorDetail",
+    "TARGET_CONTRACTS",
     "bind_interface_contract",
     "breaking_change_report",
     "catalog_html",
     "catalog_markdown",
     "diff_documents",
+    "ecosystem_bundle",
     "github_annotations",
     "import_rows",
     "import_tabular",
