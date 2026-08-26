@@ -26,6 +26,17 @@
 - [x] diagnostics for ambiguous/inconsistent workbook metadata
 - [x] CI exercise of import → validate flow
 
+## Shipped — v0.3 interoperability
+
+- [x] Transformation Graph projection
+- [x] Reconciliation as Code projection with explicit runtime endpoints
+- [x] Enterprise Change Graph projection with provenance and propagation
+- [x] Visual Workbench three-lane data-flow projection
+- [x] Visual Workbench Markdown/frontmatter output
+- [x] lookup maps projected into reconciliation field checks
+- [x] criticality projected into materiality and visual status
+- [x] projection contract tests and CI smoke tests
+
 ## P0 — governance and generated evidence
 
 - [ ] configurable policy packs for critical fields, ownership, and rationale
@@ -36,14 +47,13 @@
 - [ ] breaking-change policy and CI gate
 - [ ] release bundle with source hash and validation evidence
 
-## P0 — interoperability
+## P1 — deeper interoperability
 
-- [ ] Transformation Graph adapter
-- [ ] Reconciliation as Code projection
-- [ ] Enterprise Change Graph impact seed format
-- [ ] Visual Workbench semantic view export
 - [ ] Interface as Code field-contract references
+- [ ] change-diff seeds for Enterprise Change Graph
+- [ ] adapter conformance reports against retained target-schema versions
 - [ ] portable GraphML/Cypher export where useful
+- [ ] generated cross-repository evidence bundle
 
 ## P1 — scale and enterprise ingestion
 
@@ -56,4 +66,4 @@
 
 ## Product boundary
 
-Mapping as Code governs mapping intent. It should remain deterministic, portable, and usable without access to SAP or another enterprise runtime. Execution, reconciliation, process orchestration, and visual presentation belong in adjacent tools and consume stable Mapping as Code outputs.
+Mapping as Code governs mapping intent. It should remain deterministic, portable, and usable without access to SAP or another enterprise runtime. Execution, reconciliation, process orchestration, impact analysis, and visual presentation belong in adjacent tools and consume stable Mapping as Code outputs.
