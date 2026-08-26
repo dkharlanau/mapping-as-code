@@ -1,0 +1,8 @@
+{
+  "project": "dkharlanau/interface-as-code",
+  "contract": "spec/v1.0/interface.schema.json",
+  "version": "1.0",
+  "source_blob_sha": "87455d9d0921007b5efed1d6dd252b65a075a761",
+  "source_url": "https://github.com/dkharlanau/interface-as-code/blob/main/spec/v1.0/interface.schema.json",
+  "purpose": "Retained target contract for deterministic Mapping as Code adapter conformance tests."
+}
