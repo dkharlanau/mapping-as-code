@@ -18,6 +18,7 @@ from .annotations import github_annotations
 from .artifacts import catalog_html, catalog_markdown, release_bundle, source_sha256, traceability_matrix
 from .core import diff_documents, lineage_graph, lineage_mermaid, mapping_summary, validate_document
 from .governance import breaking_change_report, quality_scorecard, validation_report
+from .interface_binding import bind_interface_contract
 from .io import load_document
 from .review import review_markdown, review_report
 from .tabular import import_tabular
@@ -178,6 +179,18 @@ def _bundle(args: argparse.Namespace) -> int:
     return 0 if result["validation"]["valid"] else 1
 
 
+def _bind_interface(args: argparse.Namespace) -> int:
+    result = bind_interface_contract(
+        load_document(args.interface_file),
+        load_document(args.mapping_file),
+        mapping_uri=args.mapping_uri,
+        revision=args.revision,
+        allow_endpoint_mismatch=args.allow_endpoint_mismatch,
+    )
+    _write(_serialize(result, args.format), args.output)
+    return 0
+
+
 def _project(args: argparse.Namespace) -> int:
     document = load_document(args.file)
     if args.target == "transformation-graph":
@@ -292,6 +305,16 @@ def build_parser() -> argparse.ArgumentParser:
     bundle.add_argument("--format", choices=("yaml", "json"), default="json")
     bundle.add_argument("--output", "-o")
     bundle.set_defaults(func=_bundle)
+
+    bind_interface = sub.add_parser("bind-interface", help="Bind a mapping artifact to an existing Interface as Code v1.0 contract")
+    bind_interface.add_argument("interface_file")
+    bind_interface.add_argument("mapping_file")
+    bind_interface.add_argument("--mapping-uri", required=True)
+    bind_interface.add_argument("--revision")
+    bind_interface.add_argument("--allow-endpoint-mismatch", action="store_true")
+    bind_interface.add_argument("--format", choices=("yaml", "json"), default="yaml")
+    bind_interface.add_argument("--output", "-o")
+    bind_interface.set_defaults(func=_bind_interface)
 
     project = sub.add_parser("project", help="Project a mapping into an adjacent enterprise-as-code contract")
     project.add_argument("file")
