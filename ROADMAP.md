@@ -50,14 +50,22 @@
 - [x] release bundle JSON Schema
 - [x] schema conformance tests for policies and generated evidence
 
-## P0 — PR-native governance and retained baseline
+## Shipped — PR-native governance loop
 
-- [ ] reusable GitHub Action for validation + semantic gate
-- [ ] PR comment summary with quality delta and breaking events
-- [ ] retained baseline resolver from Git ref/path
-- [ ] quality-score delta between revisions
-- [ ] evidence artifact upload from CI
-- [ ] SARIF-style or annotation-friendly diagnostics where useful
+- [x] reusable composite GitHub Action for validation + semantic gate
+- [x] combined PR review report with quality delta and breaking events
+- [x] retained baseline resolver from Git ref/path
+- [x] Markdown Job Summary
+- [x] reusable workflow with evidence artifact upload
+- [x] idempotent PR comment update
+- [x] self-dogfood Action CI using `uses: ./`
+
+## P0 — review ergonomics
+
+- [ ] GitHub annotation commands for file-level diagnostics
+- [ ] SARIF output where source locations can be represented reliably
+- [ ] compact executive change summary for large mappings
+- [ ] configurable fail-on-quality-regression threshold
 
 ## P1 — deeper interoperability
 
