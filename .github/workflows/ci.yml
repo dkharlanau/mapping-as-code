@@ -54,6 +54,15 @@ jobs:
             echo "expected breaking gate to fail" >&2
             exit 1
           fi
+      - name: Exercise combined PR review
+        run: |
+          map-code review examples/customer-master.yaml examples/customer-master.yaml \
+            --policy policies/migration-pragmatic.yaml \
+            --output /tmp/review.json
+          map-code review examples/customer-master.yaml examples/customer-master.yaml \
+            --policy policies/migration-pragmatic.yaml \
+            --format markdown \
+            --output /tmp/review.md
       - name: Exercise traceability and generated catalogs
         run: |
           map-code traceability examples/customer-master.yaml --output /tmp/traceability.json
@@ -82,3 +91,25 @@ jobs:
         run: map-code project examples/customer-master.yaml --target visual-workbench --format markdown --output /tmp/mapping-visual.md
       - name: Build distribution
         run: python -m build
+
+  action-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Govern reference mapping through repository action
+        id: mapping-governance
+        uses: ./
+        with:
+          mapping-path: examples/customer-master.yaml
+          policy-path: policies/migration-pragmatic.yaml
+          baseline-ref: HEAD
+          output-dir: /tmp/mapping-action-evidence
+      - name: Verify action evidence outputs
+        shell: bash
+        run: |
+          test -s "${{ steps.mapping-governance.outputs.validation-report }}"
+          test -s "${{ steps.mapping-governance.outputs.review-report }}"
+          test -s "${{ steps.mapping-governance.outputs.summary }}"
+          test -s "${{ steps.mapping-governance.outputs.release-bundle }}"
