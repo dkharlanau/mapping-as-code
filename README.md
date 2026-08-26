@@ -1,16 +1,18 @@
 # Mapping as Code
 
-**Versionable enterprise mapping contracts with deterministic validation, change analysis, and lineage.**
+**Versionable enterprise mapping contracts with deterministic validation, change analysis, lineage, and an Excel/CSV bridge.**
 
 Mapping documents usually begin in Excel and then spread across tickets, emails, migration workbooks, interface specifications, test evidence, and implementation code. That makes a simple question surprisingly difficult: **what exactly is mapped, why, what changed, and is the mapping complete?**
 
-Mapping as Code turns that intent into a small, reviewable, machine-readable contract that can live in Git and participate in CI.
+Mapping as Code turns that intent into a small, reviewable, machine-readable contract that can live in Git and participate in CI — while still accepting the spreadsheets transformation teams already use.
 
 ## What works now
 
-v0.1 is an executable Python package and CLI. It can:
+v0.2 is an executable Python package and CLI. It can:
 
-- load YAML or JSON mapping specifications;
+- import canonical mapping tables from CSV;
+- import `.xlsx` / `.xlsm` workbooks with `Mappings` and optional `ValueMaps` sheets;
+- load canonical YAML or JSON mapping specifications;
 - validate mapping structure and semantic rules;
 - detect duplicate mapping IDs and conflicting target assignments;
 - validate lookup/value-map references;
@@ -34,21 +36,24 @@ legacy-customer-to-s4-business-partner: 4 mappings, 100% required-target coverag
 OK: no diagnostics
 ```
 
-Compare revisions:
+### Start from an existing spreadsheet export
 
 ```bash
-map-code diff \
-  examples/customer-master.yaml \
-  examples/customer-master-v2.yaml
+map-code import examples/customer-master.csv \
+  --value-maps examples/customer-value-maps.csv \
+  --output mapping.yaml
+
+map-code validate mapping.yaml
 ```
 
-Generate lineage:
+For Excel:
 
 ```bash
-map-code lineage examples/customer-master.yaml --format mermaid
+python -m pip install -e '.[excel]'
+map-code import customer-mapping.xlsx -o mapping.yaml
 ```
 
-Machine-facing output is available with `--format json`.
+See [Importing existing mapping workbooks](docs/importing-workbooks.md) for the small interchange-table convention.
 
 ## A mapping contract
 
@@ -116,11 +121,12 @@ A mapping change becomes a semantic diff: changed source, target, transformation
 
 ### Agent context
 
-Agents can consume the normalized JSON output instead of reverse-engineering an Excel workbook every time they need mapping context.
+Agents can consume normalized JSON instead of reverse-engineering a workbook every time they need mapping context.
 
 ## CLI
 
 ```text
+map-code import <csv|xlsx> [--value-maps values.csv] [-o mapping.yaml]
 map-code validate <file> [--format text|json]
 map-code diff <old> <new> [--format text|json]
 map-code lineage <file> [--format json|mermaid]
@@ -130,10 +136,12 @@ Validation errors return exit code `1`, so mapping quality can be used directly 
 
 ## Specification
 
-- [v0.1 semantics](docs/specification.md)
+- [v0.1 mapping semantics](docs/specification.md)
+- [Workbook import convention](docs/importing-workbooks.md)
 - [JSON Schema](schema/mapping.schema.json)
 - [Reference mapping](examples/customer-master.yaml)
 - [Changed revision](examples/customer-master-v2.yaml)
+- [CSV import example](examples/customer-master.csv)
 - [Roadmap](ROADMAP.md)
 
 ## Design principles
@@ -141,6 +149,7 @@ Validation errors return exit code `1`, so mapping quality can be used directly 
 - versionable and Git-friendly;
 - deterministic before probabilistic;
 - portable and vendor-neutral where practical;
+- usable without access to SAP or another enterprise runtime;
 - safe to inspect without executing arbitrary mapping expressions;
 - business semantics and technical lineage in the same contract;
 - machine-readable outputs first, visual views where useful;
@@ -165,4 +174,4 @@ Mapping as Code is **not an ETL engine**. It defines and governs mapping intent.
 
 ## Status
 
-**Active — working v0.1 core.** Validation, semantic diff, lineage, examples, tests, packaging, and CI are implemented. The next product loop focuses on spreadsheet ingestion, generated mapping documentation, policy packs, and cross-repository contracts.
+**Active — working v0.2.** The executable core and spreadsheet bridge are implemented and covered by CI. The next loop focuses on governance evidence and stable cross-repository adapters.
