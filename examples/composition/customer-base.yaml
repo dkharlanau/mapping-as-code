@@ -1,0 +1,29 @@
+schema_version: "0.1"
+mapping:
+  id: composed-customer-to-bp
+  title: Composed customer to business partner mapping
+  description: Base contract extended by reusable mapping fragments.
+  source:
+    system: legacy-erp
+    object: customer
+    required_fields:
+      - customer_id
+  target:
+    system: s4hana
+    object: business-partner
+    required_fields:
+      - BusinessPartner
+  fields:
+    - id: customer-id
+      source:
+        field: customer_id
+      target:
+        field: BusinessPartner
+      transform:
+        type: copy
+      rules:
+        required: true
+      business:
+        owner: master-data
+        criticality: high
+        rationale: Stable customer identity.
