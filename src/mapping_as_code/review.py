@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any
 
 from .governance import breaking_change_report, quality_scorecard, validation_report
@@ -49,15 +50,27 @@ def review_report(
     }
 
 
-def review_markdown(report: dict[str, Any]) -> str:
+def _append_limited(lines: list[str], items: list[dict[str, Any]], *, limit: int, formatter) -> None:
+    visible = items[:limit]
+    for item in visible:
+        lines.append(formatter(item))
+    remaining = len(items) - len(visible)
+    if remaining > 0:
+        lines.append(f"- … **{remaining} more** not shown in the compact summary.")
+
+
+def review_markdown(report: dict[str, Any], *, max_items: int = 20) -> str:
+    if max_items < 1:
+        raise ValueError("max_items must be at least 1")
     delta = float(report["quality_delta"]["score"])
     delta_text = f"+{delta:.2f}" if delta > 0 else f"{delta:.2f}"
     current = report["current"]["validation"]
     events = report["changes"]["events"]
-    errors = [item for item in events if item["severity"] == "error"]
-    warnings = [item for item in events if item["severity"] == "warning"]
     diagnostics = current["diagnostics"]
     regression_gate = report["quality_delta"]["gate"]
+    severity_counts = Counter(str(item.get("severity", "info")) for item in events)
+    kind_counts = Counter(str(item.get("kind", "change")) for item in events)
+    diagnostic_counts = Counter(str(item.get("severity", "info")) for item in diagnostics)
     lines = [
         "## Mapping as Code review",
         "",
@@ -70,7 +83,14 @@ def review_markdown(report: dict[str, Any]) -> str:
         "",
         f"Policy: `{report['policy']['name']}`",
         "",
+        "**Change summary:** "
+        f"{len(events)} events · {severity_counts.get('error', 0)} errors · "
+        f"{severity_counts.get('warning', 0)} warnings · {severity_counts.get('info', 0)} info",
+        "",
     ]
+    if kind_counts:
+        kind_text = " · ".join(f"{kind}: {count}" for kind, count in sorted(kind_counts.items()))
+        lines.extend([f"Kinds: {kind_text}", ""])
     if regression_gate["max_score_regression"] is not None:
         lines.extend(
             [
@@ -81,20 +101,31 @@ def review_markdown(report: dict[str, Any]) -> str:
         )
     lines.extend(["### Change events", ""])
     if events:
-        for event in events:
-            lines.append(f"- **{event['severity'].upper()}** `{event['id']}` — {event['kind']}")
+        _append_limited(
+            lines,
+            events,
+            limit=max_items,
+            formatter=lambda event: f"- **{event['severity'].upper()}** `{event['id']}` — {event['kind']}",
+        )
     else:
         lines.append("No semantic mapping changes.")
     lines.extend(["", "### Current diagnostics", ""])
     if diagnostics:
-        for item in diagnostics:
-            lines.append(f"- **{item['severity'].upper()}** `{item['code']}` — {item['message']}")
+        lines.append(
+            f"Diagnostics: {diagnostic_counts.get('error', 0)} errors · "
+            f"{diagnostic_counts.get('warning', 0)} warnings · {diagnostic_counts.get('info', 0)} info"
+        )
+        lines.append("")
+        _append_limited(
+            lines,
+            diagnostics,
+            limit=max_items,
+            formatter=lambda item: f"- **{item['severity'].upper()}** `{item['code']}` — {item['message']}",
+        )
     else:
         lines.append("No diagnostics.")
     lines.extend(
         [
-            "",
-            f"Breaking errors: **{len(errors)}** · Breaking warnings: **{len(warnings)}**",
             "",
             f"Baseline SHA: `{report['baseline']['document_sha256']}`",
             f"Current SHA: `{report['current']['document_sha256']}`",
