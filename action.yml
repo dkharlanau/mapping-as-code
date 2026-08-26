@@ -85,6 +85,7 @@ runs:
         set +e
         map-code report "$MAPPING_PATH" --policy "$POLICY_PATH" --output "$VALIDATION_REPORT"
         VALIDATION_STATUS=$?
+        map-code annotations "$MAPPING_PATH" --policy "$POLICY_PATH"
         set -e
 
         if [ -n "$BASELINE_PATH_INPUT" ]; then
