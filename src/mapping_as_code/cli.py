@@ -14,6 +14,7 @@ from .adapters import (
     to_transformation_graph,
     to_visual_workbench,
 )
+from .artifacts import catalog_html, catalog_markdown, release_bundle, source_sha256, traceability_matrix
 from .core import diff_documents, lineage_graph, lineage_mermaid, mapping_summary, validate_document
 from .governance import breaking_change_report, quality_scorecard, validation_report
 from .io import load_document
@@ -127,6 +128,32 @@ def _gate(args: argparse.Namespace) -> int:
     return 0 if result["passed"] else 1
 
 
+def _traceability(args: argparse.Namespace) -> int:
+    result = {"mapping_id": mapping_summary(load_document(args.file)).get("mapping_id"), "rows": traceability_matrix(load_document(args.file))}
+    _write(_serialize(result, args.format), args.output)
+    return 0
+
+
+def _catalog(args: argparse.Namespace) -> int:
+    document = load_document(args.file)
+    policy = _load_policy(args.policy)
+    text = catalog_html(document, policy) if args.format == "html" else catalog_markdown(document, policy)
+    _write(text, args.output)
+    return 0
+
+
+def _bundle(args: argparse.Namespace) -> int:
+    document = load_document(args.file)
+    result = release_bundle(
+        document,
+        source_name=Path(args.file).name,
+        source_hash=source_sha256(args.file),
+        policy=_load_policy(args.policy),
+    )
+    _write(_serialize(result, args.format), args.output)
+    return 0 if result["validation"]["valid"] else 1
+
+
 def _project(args: argparse.Namespace) -> int:
     document = load_document(args.file)
     if args.target == "transformation-graph":
@@ -207,6 +234,26 @@ def build_parser() -> argparse.ArgumentParser:
     gate.add_argument("--format", choices=("yaml", "json"), default="json")
     gate.add_argument("--output", "-o")
     gate.set_defaults(func=_gate)
+
+    traceability = sub.add_parser("traceability", help="Generate a field-level traceability matrix")
+    traceability.add_argument("file")
+    traceability.add_argument("--format", choices=("yaml", "json"), default="json")
+    traceability.add_argument("--output", "-o")
+    traceability.set_defaults(func=_traceability)
+
+    catalog = sub.add_parser("catalog", help="Generate a human-readable mapping catalog")
+    catalog.add_argument("file")
+    catalog.add_argument("--policy")
+    catalog.add_argument("--format", choices=("markdown", "html"), default="markdown")
+    catalog.add_argument("--output", "-o")
+    catalog.set_defaults(func=_catalog)
+
+    bundle = sub.add_parser("bundle", help="Build an auditable mapping release bundle")
+    bundle.add_argument("file")
+    bundle.add_argument("--policy")
+    bundle.add_argument("--format", choices=("yaml", "json"), default="json")
+    bundle.add_argument("--output", "-o")
+    bundle.set_defaults(func=_bundle)
 
     project = sub.add_parser("project", help="Project a mapping into an adjacent enterprise-as-code contract")
     project.add_argument("file")
