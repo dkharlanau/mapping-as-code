@@ -11,11 +11,11 @@ portfolio:
   brand_value: 10
 
 status: active
-version: 0.2.0
+version: 0.3.0
 
 implementation:
   repository_created: true
-  implementation_status: executable-core-plus-workbook-bridge
+  implementation_status: executable-core-workbook-bridge-interoperability
   codex_fit: 5/5
   sap_access_required: false
   package: python
@@ -33,6 +33,11 @@ capabilities:
   - csv-import
   - xlsx-import
   - workbook-value-maps
+  - transformation-graph-projection
+  - reconciliation-as-code-projection
+  - enterprise-change-graph-projection
+  - visual-workbench-projection
+  - visual-workbench-markdown
   - machine-readable-json
 
 principles:
