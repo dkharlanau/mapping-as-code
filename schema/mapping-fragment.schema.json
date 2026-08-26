@@ -10,7 +10,7 @@
     "fields": {
       "type": "array",
       "minItems": 1,
-      "items": {"$ref": "mapping.schema.json#/$defs/fieldMapping"}
+      "items": {"$ref": "#/$defs/fieldMapping"}
     },
     "value_maps": {
       "type": "object",
@@ -23,6 +23,39 @@
         "source": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
         "target": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}
       }
+    }
+  },
+  "$defs": {
+    "fieldEndpoint": {
+      "type": "object",
+      "required": ["field"],
+      "properties": {"field": {"type": "string", "minLength": 1}},
+      "additionalProperties": true
+    },
+    "transform": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {"enum": ["copy", "lookup", "constant", "expression", "concat", "split", "date", "number", "boolean"]},
+        "reference": {"type": "string"},
+        "value": {},
+        "expression": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "fieldMapping": {
+      "type": "object",
+      "required": ["id", "target"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "source": {"$ref": "#/$defs/fieldEndpoint"},
+        "target": {"$ref": "#/$defs/fieldEndpoint"},
+        "transform": {"$ref": "#/$defs/transform"},
+        "rules": {"type": "object"},
+        "business": {"type": "object"},
+        "allow_multiple_sources": {"type": "boolean"}
+      },
+      "additionalProperties": true
     }
   }
 }
