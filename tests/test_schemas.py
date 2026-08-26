@@ -3,6 +3,7 @@ import json
 import jsonschema
 
 from mapping_as_code.artifacts import release_bundle
+from mapping_as_code.composition import compose_manifest
 from mapping_as_code.governance import validation_report
 from mapping_as_code.io import load_document
 
@@ -33,3 +34,18 @@ def test_release_bundle_matches_published_schema():
         policy=load_document("policies/migration-pragmatic.yaml"),
     )
     jsonschema.validate(bundle, _schema("schema/release-bundle.schema.json"))
+
+
+def test_composition_manifest_and_fragments_match_published_schemas():
+    jsonschema.validate(
+        load_document("examples/composition/customer.composition.yaml"),
+        _schema("schema/composition-manifest.schema.json"),
+    )
+    fragment_schema = _schema("schema/mapping-fragment.schema.json")
+    jsonschema.validate(load_document("examples/composition/country.fragment.yaml"), fragment_schema)
+    jsonschema.validate(load_document("examples/composition/address.fragment.yaml"), fragment_schema)
+
+
+def test_composed_result_is_a_normal_mapping_contract():
+    document, _ = compose_manifest("examples/composition/customer.composition.yaml")
+    jsonschema.validate(document, _schema("schema/mapping.schema.json"))
