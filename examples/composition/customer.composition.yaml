@@ -1,0 +1,7 @@
+composition_version: 1
+base: customer-base.yaml
+fragments:
+  - path: country.fragment.yaml
+    namespace: geo
+  - path: address.fragment.yaml
+    namespace: address
