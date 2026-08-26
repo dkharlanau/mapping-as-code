@@ -38,8 +38,14 @@ jobs:
           map-code validate /tmp/imported-mapping.yaml --format json
       - name: Exercise semantic diff
         run: map-code diff examples/customer-master.yaml examples/customer-master-v2.yaml --format json
-      - name: Exercise lineage compiler
-        run: map-code lineage examples/customer-master.yaml --format mermaid
+      - name: Exercise lineage exports
+        run: |
+          map-code lineage examples/customer-master.yaml --format mermaid --output /tmp/lineage.mmd
+          map-code lineage examples/customer-master.yaml --format graphml --output /tmp/lineage.graphml
+          map-code lineage examples/customer-master.yaml --format cypher --output /tmp/lineage.cypher
+          test -s /tmp/lineage.mmd
+          test -s /tmp/lineage.graphml
+          test -s /tmp/lineage.cypher
       - name: Exercise quality score and governed report
         run: |
           map-code score examples/customer-master.yaml --format json
@@ -73,10 +79,20 @@ jobs:
           map-code bundle examples/customer-master.yaml \
             --policy policies/migration-pragmatic.yaml \
             --output /tmp/release-bundle.json
+      - name: Exercise Interface as Code binding
+        run: |
+          map-code bind-interface examples/customer-interface.yaml examples/customer-master.yaml \
+            --mapping-uri mappings/customer-master.yaml \
+            --revision ci-test \
+            --output /tmp/customer-interface-bound.yaml
+          test -s /tmp/customer-interface-bound.yaml
       - name: Exercise Transformation Graph projection
         run: map-code project examples/customer-master.yaml --target transformation-graph --output /tmp/transformation-graph.json
-      - name: Exercise Enterprise Change Graph projection
-        run: map-code project examples/customer-master.yaml --target enterprise-change-graph --output /tmp/change-graph.json
+      - name: Exercise Enterprise Change Graph snapshot and transition
+        run: |
+          map-code project examples/customer-master.yaml --target enterprise-change-graph --output /tmp/change-graph.json
+          map-code change-graph examples/customer-master.yaml examples/customer-master-v2.yaml --output /tmp/change-transition.json
+          test -s /tmp/change-transition.json
       - name: Exercise Reconciliation as Code projection
         run: |
           map-code project examples/customer-master.yaml \
