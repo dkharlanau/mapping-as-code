@@ -40,5 +40,21 @@ jobs:
         run: map-code diff examples/customer-master.yaml examples/customer-master-v2.yaml --format json
       - name: Exercise lineage compiler
         run: map-code lineage examples/customer-master.yaml --format mermaid
+      - name: Exercise Transformation Graph projection
+        run: map-code project examples/customer-master.yaml --target transformation-graph --output /tmp/transformation-graph.json
+      - name: Exercise Enterprise Change Graph projection
+        run: map-code project examples/customer-master.yaml --target enterprise-change-graph --output /tmp/change-graph.json
+      - name: Exercise Reconciliation as Code projection
+        run: |
+          map-code project examples/customer-master.yaml \
+            --target reconciliation-as-code \
+            --source-file legacy.csv \
+            --target-file s4.csv \
+            --source-key customer_id \
+            --target-key BusinessPartner \
+            --format yaml \
+            --output /tmp/reconciliation.yaml
+      - name: Exercise Visual Workbench projection
+        run: map-code project examples/customer-master.yaml --target visual-workbench --format markdown --output /tmp/mapping-visual.md
       - name: Build distribution
         run: python -m build
