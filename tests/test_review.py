@@ -1,5 +1,7 @@
 from copy import deepcopy
 
+import pytest
+
 from mapping_as_code.io import load_document
 from mapping_as_code.review import review_markdown, review_report
 
@@ -23,6 +25,7 @@ def test_review_markdown_is_pr_readable():
     assert "| Quality |" in text
     assert "### Change events" in text
     assert "Baseline SHA" in text
+    assert "Change summary:" in text
 
 
 def test_review_can_fail_on_quality_regression_without_breaking_semantic_change():
@@ -41,3 +44,22 @@ def test_review_can_fail_on_quality_regression_without_breaking_semantic_change(
     assert report["quality_delta"]["score"] < -1
     assert report["quality_delta"]["gate"]["passed"] is False
     assert report["passed"] is False
+
+
+def test_review_markdown_truncates_large_event_lists_but_keeps_counts():
+    old = load_document("examples/customer-master.yaml")
+    new = load_document("examples/customer-master-v2.yaml")
+    report = review_report(old, new, load_document("policies/migration-pragmatic.yaml"))
+    original = list(report["changes"]["events"])
+    report["changes"]["events"] = original * 6
+    text = review_markdown(report, max_items=2)
+    assert f"{len(report['changes']['events'])} events" in text
+    assert "more** not shown in the compact summary" in text
+    assert text.count("- **") == 3  # two events plus the truncation marker
+
+
+def test_review_markdown_rejects_zero_item_limit():
+    old = load_document("examples/customer-master.yaml")
+    report = review_report(old, old)
+    with pytest.raises(ValueError, match="at least 1"):
+        review_markdown(report, max_items=0)
