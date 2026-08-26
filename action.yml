@@ -1,0 +1,144 @@
+name: Mapping as Code Governance
+description: Validate a mapping contract, compare it with a retained baseline, and emit auditable PR evidence.
+author: Dzmitryi Kharlanau
+
+branding:
+  icon: git-pull-request
+  color: blue
+
+inputs:
+  mapping-path:
+    description: Path to the current Mapping as Code YAML/JSON file.
+    required: true
+  policy-path:
+    description: Policy path in the caller repository. Defaults to the action's migration-pragmatic policy.
+    required: false
+    default: ""
+  baseline-path:
+    description: Optional local path to a baseline mapping file.
+    required: false
+    default: ""
+  baseline-ref:
+    description: Optional Git ref used to read the baseline at the current mapping path (for example origin/main).
+    required: false
+    default: ""
+  output-dir:
+    description: Directory for validation, review, summary, and release evidence.
+    required: false
+    default: .mapping-as-code
+  python-version:
+    description: Python version used by the action.
+    required: false
+    default: "3.12"
+
+outputs:
+  validation-report:
+    description: Path to the policy-aware validation report.
+    value: ${{ steps.govern.outputs.validation_report }}
+  review-report:
+    description: Path to the combined baseline/current review report when a baseline is available.
+    value: ${{ steps.govern.outputs.review_report }}
+  summary:
+    description: Path to the generated Markdown summary.
+    value: ${{ steps.govern.outputs.summary }}
+  release-bundle:
+    description: Path to the auditable mapping release bundle.
+    value: ${{ steps.govern.outputs.release_bundle }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install Mapping as Code
+      shell: bash
+      run: python -m pip install "${GITHUB_ACTION_PATH}"
+
+    - name: Govern mapping contract
+      id: govern
+      shell: bash
+      env:
+        MAPPING_PATH: ${{ inputs.mapping-path }}
+        POLICY_INPUT: ${{ inputs.policy-path }}
+        BASELINE_PATH_INPUT: ${{ inputs.baseline-path }}
+        BASELINE_REF: ${{ inputs.baseline-ref }}
+        OUTPUT_DIR: ${{ inputs.output-dir }}
+      run: |
+        set -u
+        mkdir -p "$OUTPUT_DIR"
+
+        if [ -n "$POLICY_INPUT" ]; then
+          POLICY_PATH="$POLICY_INPUT"
+        else
+          POLICY_PATH="${GITHUB_ACTION_PATH}/policies/migration-pragmatic.yaml"
+        fi
+
+        VALIDATION_REPORT="$OUTPUT_DIR/validation-report.json"
+        REVIEW_REPORT="$OUTPUT_DIR/review-report.json"
+        SUMMARY="$OUTPUT_DIR/summary.md"
+        RELEASE_BUNDLE="$OUTPUT_DIR/release-bundle.json"
+        BASELINE_FILE=""
+
+        set +e
+        map-code report "$MAPPING_PATH" --policy "$POLICY_PATH" --output "$VALIDATION_REPORT"
+        VALIDATION_STATUS=$?
+        set -e
+
+        if [ -n "$BASELINE_PATH_INPUT" ]; then
+          BASELINE_FILE="$BASELINE_PATH_INPUT"
+        elif [ -n "$BASELINE_REF" ]; then
+          BASELINE_FILE="$OUTPUT_DIR/baseline.yaml"
+          git show "${BASELINE_REF}:${MAPPING_PATH}" > "$BASELINE_FILE"
+        fi
+
+        REVIEW_STATUS="$VALIDATION_STATUS"
+        if [ -n "$BASELINE_FILE" ]; then
+          set +e
+          map-code review "$BASELINE_FILE" "$MAPPING_PATH" --policy "$POLICY_PATH" --output "$REVIEW_REPORT"
+          REVIEW_STATUS=$?
+          map-code review "$BASELINE_FILE" "$MAPPING_PATH" --policy "$POLICY_PATH" --format markdown --output "$SUMMARY"
+          set -e
+        else
+          python - "$VALIDATION_REPORT" "$SUMMARY" <<'PY'
+        import json
+        import sys
+        report = json.load(open(sys.argv[1], encoding="utf-8"))
+        lines = [
+            "## Mapping as Code review",
+            "",
+            f"**Result:** {'PASS' if report['valid'] else 'FAIL'}",
+            "",
+            f"Quality: **{report['quality']['score']:.2f}/100**",
+            f"Required target coverage: **{report['summary']['coverage']:.0%}**",
+            f"Policy: `{report['policy']['name']}`",
+            "",
+            "### Current diagnostics",
+            "",
+        ]
+        if report["diagnostics"]:
+            for item in report["diagnostics"]:
+                lines.append(f"- **{item['severity'].upper()}** `{item['code']}` — {item['message']}")
+        else:
+            lines.append("No diagnostics.")
+        lines.extend(["", f"Current SHA: `{report['document_sha256']}`", ""])
+        open(sys.argv[2], "w", encoding="utf-8").write("\n".join(lines))
+        PY
+        fi
+
+        set +e
+        map-code bundle "$MAPPING_PATH" --policy "$POLICY_PATH" --output "$RELEASE_BUNDLE"
+        set -e
+
+        cat "$SUMMARY" >> "$GITHUB_STEP_SUMMARY"
+        echo "validation_report=$VALIDATION_REPORT" >> "$GITHUB_OUTPUT"
+        echo "review_report=$REVIEW_REPORT" >> "$GITHUB_OUTPUT"
+        echo "summary=$SUMMARY" >> "$GITHUB_OUTPUT"
+        echo "release_bundle=$RELEASE_BUNDLE" >> "$GITHUB_OUTPUT"
+
+        if [ "$REVIEW_STATUS" -ne 0 ]; then
+          echo "Mapping governance failed. See $SUMMARY" >&2
+          exit "$REVIEW_STATUS"
+        fi
