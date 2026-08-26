@@ -1,0 +1,8 @@
+{
+  "project": "dkharlanau/transformation-graph",
+  "contract": "schema/transformation-graph.schema.json",
+  "version": "0.1",
+  "source_blob_sha": "307eef2d68a7aa4880dc0b16d0ddc14c27d3ada8",
+  "source_url": "https://github.com/dkharlanau/transformation-graph/blob/main/schema/transformation-graph.schema.json",
+  "purpose": "Retained target contract for deterministic adapter conformance tests."
+}
