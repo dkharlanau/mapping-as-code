@@ -1,0 +1,20 @@
+schema_version: "0.1"
+mapping:
+  id: supplier-master
+  title: Supplier master migration
+  description: Legacy vendor fields to S4 business partner supplier data.
+  source:
+    system: legacy-erp
+    object: vendor
+  target:
+    system: s4hana
+    object: business-partner
+  fields:
+    - id: supplier-id
+      source: {field: LIFNR}
+      target: {field: BusinessPartner}
+      transform: {type: copy}
+      business:
+        owner: procurement-data
+        criticality: high
+        rationale: Stable supplier identity.
