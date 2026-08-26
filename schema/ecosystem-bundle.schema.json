@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dkharlanau.github.io/mapping-as-code/schema/ecosystem-bundle.schema.json",
+  "title": "Mapping as Code ecosystem evidence bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ecosystem_bundle_version", "mapping_id", "mapping_canonical_sha256", "artifacts"],
+  "properties": {
+    "ecosystem_bundle_version": {"const": 1},
+    "mapping_id": {"type": "string", "minLength": 1},
+    "mapping_canonical_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "artifacts": {
+      "type": "object",
+      "minProperties": 4,
+      "additionalProperties": {"$ref": "#/$defs/artifact"}
+    }
+  },
+  "$defs": {
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "source_blob_sha", "source"],
+      "properties": {
+        "version": {},
+        "source_blob_sha": {"type": "string", "pattern": "^[a-f0-9]{40}$"},
+        "source": {"type": "string", "minLength": 1}
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "sha256", "document"],
+      "properties": {
+        "kind": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+        "contract": {"$ref": "#/$defs/contract"},
+        "document": {"type": "object"}
+      }
+    }
+  }
+}
