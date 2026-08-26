@@ -20,7 +20,10 @@ def review_report(
         for name in dimensions
     }
     score_delta = round(float(current_quality["score"]) - float(baseline_quality["score"]), 2)
-    passed = bool(current_validation["valid"] and changes["passed"])
+    quality_policy = policy.get("quality", {}) if isinstance(policy, dict) and isinstance(policy.get("quality"), dict) else {}
+    max_regression = quality_policy.get("max_score_regression")
+    regression_passed = max_regression is None or score_delta >= -float(max_regression)
+    passed = bool(current_validation["valid"] and changes["passed"] and regression_passed)
     return {
         "review_version": 1,
         "mapping_id": current_validation.get("mapping_id"),
@@ -33,7 +36,14 @@ def review_report(
             "document_sha256": changes["new_document_sha256"],
             "validation": current_validation,
         },
-        "quality_delta": {"score": score_delta, "dimensions": dimension_delta},
+        "quality_delta": {
+            "score": score_delta,
+            "dimensions": dimension_delta,
+            "gate": {
+                "max_score_regression": max_regression,
+                "passed": regression_passed,
+            },
+        },
         "changes": changes,
         "passed": passed,
     }
@@ -47,6 +57,7 @@ def review_markdown(report: dict[str, Any]) -> str:
     errors = [item for item in events if item["severity"] == "error"]
     warnings = [item for item in events if item["severity"] == "warning"]
     diagnostics = current["diagnostics"]
+    regression_gate = report["quality_delta"]["gate"]
     lines = [
         "## Mapping as Code review",
         "",
@@ -59,9 +70,16 @@ def review_markdown(report: dict[str, Any]) -> str:
         "",
         f"Policy: `{report['policy']['name']}`",
         "",
-        "### Change events",
-        "",
     ]
+    if regression_gate["max_score_regression"] is not None:
+        lines.extend(
+            [
+                f"Quality regression gate: **{'PASS' if regression_gate['passed'] else 'FAIL'}** "
+                f"(maximum drop {float(regression_gate['max_score_regression']):.2f})",
+                "",
+            ]
+        )
+    lines.extend(["### Change events", ""])
     if events:
         for event in events:
             lines.append(f"- **{event['severity'].upper()}** `{event['id']}` — {event['kind']}")
