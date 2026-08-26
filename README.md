@@ -1,61 +1,141 @@
 # Mapping as Code
 
-**Versionable enterprise mapping contracts with deterministic validation, Excel/CSV import, semantic change analysis, lineage, and projections into adjacent enterprise-as-code tools.**
+**Versionable enterprise mapping contracts with workbook import, deterministic validation, policy gates, evidence bundles, lineage, and projections into adjacent enterprise-as-code tools.**
 
-Enterprise mappings usually begin in Excel and then spread across tickets, migration workbooks, interface specifications, test evidence, and implementation code. That makes a simple question surprisingly difficult: **what exactly is mapped, why, what changed, is it complete, and what else depends on it?**
+Enterprise mappings usually begin in Excel and then spread across tickets, migration workbooks, interface specifications, test evidence, and implementation code. That makes basic questions difficult: **what exactly is mapped, why, who owns it, what changed, is it complete, and is the change safe to release?**
 
 Mapping as Code turns mapping intent into a small, reviewable, machine-readable contract that can live in Git and participate in CI — without forcing transformation teams to abandon spreadsheets on day one.
 
 ## What works now
 
-v0.3 can:
+v0.4 can:
 
-- import canonical mapping tables from CSV;
-- import `.xlsx` / `.xlsm` workbooks with `Mappings` and optional `ValueMaps` sheets;
-- load canonical YAML or JSON mapping specifications;
-- validate structure and semantic mapping rules;
-- detect duplicate mapping IDs and conflicting target assignments;
-- validate lookup/value-map references;
-- enforce required target-field coverage;
-- flag unused required source fields;
-- compare revisions by stable business mapping ID;
-- produce field-level lineage as JSON or Mermaid;
-- project the same mapping into **Transformation Graph**;
-- generate a safe starting contract for **Reconciliation as Code**;
-- project mapping lineage into **Enterprise Change Graph**;
-- generate **Visual Workbench** Markdown/frontmatter for deterministic rendering;
-- emit deterministic machine-readable output for CI and agents.
+- import mapping tables from CSV, `.xlsx`, and `.xlsm`;
+- load canonical YAML/JSON specifications;
+- validate structure, required target coverage, duplicate mappings, and value-map references;
+- compare revisions by stable mapping IDs;
+- generate field-level lineage and traceability;
+- calculate a transparent 0–100 mapping quality score;
+- apply reusable governance policy packs for ownership, criticality, rationale, warning limits, and quality thresholds;
+- classify source/target/transform/rule/business changes and block breaking revisions in CI;
+- generate machine-readable validation reports with canonical SHA-256;
+- generate Markdown and standalone HTML mapping catalogs;
+- build auditable release bundles containing raw source hash, canonical hash, validation evidence, traceability, and lineage;
+- project the same mapping into **Transformation Graph**, **Reconciliation as Code**, **Enterprise Change Graph**, and **Visual Workbench**.
 
 ## Quick start
 
 ```bash
 python -m pip install -e .
 map-code validate examples/customer-master.yaml
+map-code score examples/customer-master.yaml
 ```
 
-```text
-legacy-customer-to-s4-business-partner: 4 mappings, 100% required-target coverage
-OK: no diagnostics
-```
-
-### Start from Excel or CSV
-
-```bash
-map-code import examples/customer-master.csv \
-  --value-maps examples/customer-value-maps.csv \
-  --output mapping.yaml
-
-map-code validate mapping.yaml
-```
-
-For Excel:
+Start from an existing workbook:
 
 ```bash
 python -m pip install -e '.[excel]'
 map-code import customer-mapping.xlsx -o mapping.yaml
+map-code validate mapping.yaml
 ```
 
 See [Importing existing mapping workbooks](docs/importing-workbooks.md).
+
+## Governance
+
+Use a reusable policy pack:
+
+```bash
+map-code report examples/customer-master.yaml \
+  --policy policies/migration-pragmatic.yaml \
+  -o validation-report.json
+```
+
+A policy can require field ownership and rationale by criticality, set a minimum quality score, cap warnings, and classify semantic changes as `ignore`, `info`, `warning`, or `error`.
+
+Two reference packs are included:
+
+- `policies/migration-pragmatic.yaml` — practical migration governance;
+- `policies/enterprise-strict.yaml` — stronger stewardship and release controls.
+
+### Breaking-change gate
+
+```bash
+map-code gate \
+  examples/customer-master.yaml \
+  examples/customer-master-v2.yaml \
+  --policy policies/enterprise-strict.yaml \
+  -o breaking-report.json
+```
+
+Exit code `1` means the revision violates policy. By default, removing a stable mapping or changing its target/transform is breaking; source/rule/business changes remain reviewable and policy-configurable.
+
+See [Governance and evidence](docs/governance.md).
+
+## Quality score
+
+```bash
+map-code score examples/customer-master.yaml --format json
+```
+
+The score is intentionally explainable, not heuristic. Its 100 points are split across:
+
+- structural/semantic validity — 35;
+- required target coverage — 25;
+- ownership — 15;
+- rationale — 10;
+- criticality metadata — 10;
+- stable mapping IDs — 5.
+
+The detailed dimension values are emitted with the score.
+
+## Generated evidence
+
+### Traceability matrix
+
+```bash
+map-code traceability examples/customer-master.yaml -o traceability.json
+```
+
+Each row retains the stable mapping ID, qualified source and target field, transform, value-map reference, required flag, owner, criticality, and rationale.
+
+### Mapping catalog
+
+```bash
+map-code catalog examples/customer-master.yaml \
+  --format markdown \
+  -o mapping-catalog.md
+
+map-code catalog examples/customer-master.yaml \
+  --format html \
+  -o mapping-catalog.html
+```
+
+The HTML catalog is standalone and contains no runtime dependency.
+
+### Release bundle
+
+```bash
+map-code bundle examples/customer-master.yaml \
+  --policy policies/migration-pragmatic.yaml \
+  -o mapping-release.json
+```
+
+The bundle contains:
+
+```text
+source file SHA-256
+        +
+canonical document SHA-256
+        +
+policy-aware validation report
+        +
+traceability matrix
+        +
+field-level lineage
+```
+
+This allows a retained artifact to prove what source was reviewed and which normalized mapping contract was validated.
 
 ## A mapping contract
 
@@ -64,6 +144,7 @@ schema_version: "0.1"
 
 mapping:
   id: legacy-customer-to-s4-business-partner
+  title: Legacy customer to S/4HANA Business Partner
 
   source:
     system: legacy-erp
@@ -77,20 +158,18 @@ mapping:
 
   fields:
     - id: customer-id
-      source:
-        field: customer_id
-      target:
-        field: BusinessPartner
-      transform:
-        type: copy
-      rules:
-        required: true
+      source: {field: customer_id}
+      target: {field: BusinessPartner}
+      transform: {type: copy}
+      rules: {required: true}
+      business:
+        owner: master-data
+        criticality: high
+        rationale: Stable cross-system business identity.
 
     - id: customer-country
-      source:
-        field: country
-      target:
-        field: Country
+      source: {field: country}
+      target: {field: Country}
       transform:
         type: lookup
         reference: iso-country
@@ -103,23 +182,14 @@ value_maps:
 
 The stable field mapping `id` is independent from source and target names. A rename is therefore a semantic change to the same rule, not an opaque delete/add pair.
 
-## Semantic diff
+## Semantic diff and lineage
 
 ```bash
-map-code diff \
-  examples/customer-master.yaml \
-  examples/customer-master-v2.yaml
-```
-
-The diff distinguishes source, target, transform, rule, and business-metadata changes.
-
-## Lineage
-
-```bash
+map-code diff examples/customer-master.yaml examples/customer-master-v2.yaml
 map-code lineage examples/customer-master.yaml --format mermaid
 ```
 
-JSON output is available for machine use.
+Diff distinguishes `source`, `target`, `transform`, `rules`, and `business` changes. Lineage is available as JSON or Mermaid.
 
 ## One mapping, multiple enterprise views
 
@@ -130,8 +200,6 @@ map-code project examples/customer-master.yaml \
   --target transformation-graph \
   -o mapping.transformation-graph.json
 ```
-
-Systems, business objects, fields, and stable mapping rules become project graph nodes and edges.
 
 ### Reconciliation as Code
 
@@ -148,7 +216,7 @@ map-code project examples/customer-master.yaml \
   -o reconciliation.yaml
 ```
 
-Only deterministic `copy` and `lookup` mappings automatically become field checks. Lookup dictionaries are preserved. Constants and arbitrary expressions are deliberately not converted into misleading equality checks.
+Only deterministic `copy` and `lookup` mappings automatically become field checks. Constants and arbitrary expressions are deliberately not converted into misleading equality checks.
 
 ### Enterprise Change Graph
 
@@ -157,8 +225,6 @@ map-code project examples/customer-master.yaml \
   --target enterprise-change-graph \
   -o mapping.change-graph.json
 ```
-
-Projection preserves provenance and business criticality so mapping rules can participate in downstream impact analysis.
 
 ### Visual Workbench
 
@@ -169,53 +235,41 @@ map-code project examples/customer-master.yaml \
   -o mapping-visual.md
 ```
 
-The result is native Visual Workbench Markdown with three semantic lanes: source → mapping rules → target.
-
-See [Interoperability](docs/interoperability.md) for the projection rules and safety boundaries.
-
-## Why this is useful
-
-### Migration and transformation projects
-
-Keep field mappings reviewable, diffable, testable, and linked to required target coverage instead of treating the workbook as an opaque attachment.
-
-### Integration design
-
-Represent source-to-target intent separately from runtime middleware. Review the mapping before implementation and reuse it later for impact analysis and evidence generation.
-
-### Data governance
-
-Capture ownership, rationale, criticality, rules, and value maps close to the actual field relationship.
-
-### Pull-request governance
-
-A mapping change becomes a semantic diff instead of a line-level spreadsheet comparison.
-
-### Agent context
-
-Agents consume normalized contracts and projections rather than reverse-engineering workbooks repeatedly.
+See [Interoperability](docs/interoperability.md) for projection rules and safety boundaries.
 
 ## CLI
 
 ```text
 map-code import <csv|xlsx> [--value-maps values.csv] [-o mapping.yaml]
 map-code validate <file> [--format text|json]
+map-code score <file> [--format text|json]
+map-code report <file> [--policy policy.yaml] [-o report.json]
 map-code diff <old> <new> [--format text|json]
+map-code gate <old> <new> [--policy policy.yaml] [-o report.json]
 map-code lineage <file> [--format json|mermaid]
+map-code traceability <file> [-o traceability.json]
+map-code catalog <file> [--format markdown|html] [-o catalog]
+map-code bundle <file> [--policy policy.yaml] [-o bundle.json]
 map-code project <file> --target <target> [projection options]
 ```
 
-Validation errors return exit code `1`; parse/import errors return exit code `2`.
+Validation/governance failures return exit code `1`; parsing/import/usage failures return exit code `2`.
 
-## Specification and guides
+## Machine-readable contracts
 
-- [v0.1 mapping semantics](docs/specification.md)
+- [Mapping schema](schema/mapping.schema.json)
+- [Governance policy schema](schema/governance-policy.schema.json)
+- [Validation report schema](schema/validation-report.schema.json)
+- [Release bundle schema](schema/release-bundle.schema.json)
+
+Schemas and generated contracts are exercised in CI.
+
+## Guides
+
+- [Mapping semantics](docs/specification.md)
 - [Workbook import convention](docs/importing-workbooks.md)
+- [Governance and evidence](docs/governance.md)
 - [Cross-repository interoperability](docs/interoperability.md)
-- [JSON Schema](schema/mapping.schema.json)
-- [Reference mapping](examples/customer-master.yaml)
-- [Changed revision](examples/customer-master-v2.yaml)
-- [CSV import example](examples/customer-master.csv)
 - [Roadmap](ROADMAP.md)
 
 ## Design principles
@@ -223,11 +277,11 @@ Validation errors return exit code `1`; parse/import errors return exit code `2`
 - versionable and Git-friendly;
 - deterministic before probabilistic;
 - portable and vendor-neutral where practical;
-- usable without access to SAP or another enterprise runtime;
-- safe to inspect without executing arbitrary mapping expressions;
+- usable without SAP/runtime access;
+- no execution of arbitrary mapping expressions during governance;
 - business semantics and technical lineage in the same contract;
-- machine-readable outputs first, visual views where useful;
-- provenance retained across projections;
+- policy and scoring must remain explainable;
+- retained provenance across generated evidence and projections;
 - adjacent tools own execution, reconciliation, impact analysis, and presentation.
 
 ## Boundary
@@ -249,4 +303,4 @@ Mapping as Code is **not an ETL engine**. It defines and governs mapping intent.
 
 ## Status
 
-**Active — working v0.3.** The executable mapping core, spreadsheet bridge, and first cross-repository interoperability layer are implemented and exercised in CI. Next focus: governance evidence, breaking-change gates, and retained adapter conformance.
+**Active — working v0.4.** Executable mapping core, spreadsheet bridge, cross-repository interoperability, governance policy packs, breaking-change gates, generated catalogs, traceability, and release evidence are implemented and continuously tested.
