@@ -1,0 +1,5 @@
+mapping_id,source_system,source_object,target_system,target_object,id,source_field,target_field,transform,reference,value,required_source,required_target,owner,criticality,rationale
+legacy-customer-to-s4-business-partner,legacy-erp,customer,s4hana,business-partner,customer-id,customer_id,BusinessPartner,copy,,,true,true,master-data,high,Stable cross-system business identity
+legacy-customer-to-s4-business-partner,legacy-erp,customer,s4hana,business-partner,customer-name,name,OrganizationBPName1,copy,,,true,true,master-data,medium,Primary organization name
+legacy-customer-to-s4-business-partner,legacy-erp,customer,s4hana,business-partner,customer-country,country,Country,lookup,iso-country,,true,true,master-data,high,Country normalization
+legacy-customer-to-s4-business-partner,legacy-erp,customer,s4hana,business-partner,bp-category,,BusinessPartnerCategory,constant,,2,false,true,master-data,high,Organization business partner category
