@@ -1,0 +1,44 @@
+version: '1.0'
+interface:
+  id: CUSTOMER-BP-01
+  name: Legacy customer to S4 business partner interface
+  source:
+    system: legacy-erp
+    object: customer
+  target:
+    system: s4hana
+    object: business-partner
+  mode: batch
+  pattern: scheduled-batch
+  criticality: high
+  lifecycle: active
+ownership:
+  business: Master Data
+  technical: Integration Team
+  support: Data Operations
+trigger:
+  schedule: daily
+contract:
+  format: CSV
+delivery:
+  guarantee: at-least-once
+  ordering: none
+  idempotency:
+    required: true
+    key: customer_id
+mapping:
+  profile: legacy-customer-to-s4-business-partner
+retry:
+  strategy: manual
+monitoring:
+  owner: Data Operations
+  support_route: Master data support queue
+  business_key: customer_id
+  signals:
+    - failed_records
+    - processing_latency
+reconciliation:
+  key: customer_id
+  frequency: daily
+  source_of_truth: legacy-erp
+  comparison: Customer identities and governed mapped fields.
