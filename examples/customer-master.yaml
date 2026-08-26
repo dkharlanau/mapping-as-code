@@ -1,0 +1,75 @@
+schema_version: "0.1"
+
+mapping:
+  id: legacy-customer-to-s4-business-partner
+  title: Legacy customer to S/4HANA Business Partner
+  description: Synthetic reference mapping for migration and integration design.
+
+  source:
+    system: legacy-erp
+    object: customer
+    required_fields:
+      - customer_id
+      - name
+      - country
+
+  target:
+    system: s4hana
+    object: business-partner
+    required_fields:
+      - BusinessPartner
+      - OrganizationBPName1
+      - Country
+      - BusinessPartnerCategory
+
+  fields:
+    - id: customer-id
+      source:
+        field: customer_id
+      target:
+        field: BusinessPartner
+      transform:
+        type: copy
+      rules:
+        required: true
+      business:
+        owner: master-data
+        criticality: high
+        rationale: Stable cross-system business identity.
+
+    - id: customer-name
+      source:
+        field: name
+      target:
+        field: OrganizationBPName1
+      transform:
+        type: copy
+      rules:
+        required: true
+
+    - id: customer-country
+      source:
+        field: country
+      target:
+        field: Country
+      transform:
+        type: lookup
+        reference: iso-country
+      rules:
+        required: true
+
+    - id: bp-category
+      target:
+        field: BusinessPartnerCategory
+      transform:
+        type: constant
+        value: "2"
+      business:
+        rationale: Organization category for customer business partners.
+
+value_maps:
+  iso-country:
+    DE: DE
+    BY: BY
+    US: US
+    GB: GB
