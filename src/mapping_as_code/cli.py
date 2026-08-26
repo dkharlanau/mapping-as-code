@@ -24,6 +24,7 @@ from .graph_exports import lineage_cypher, lineage_graphml
 from .interface_binding import bind_interface_contract
 from .io import load_document
 from .review import review_markdown, review_report
+from .sarif import sarif_report
 from .tabular import import_tabular
 
 
@@ -152,6 +153,14 @@ def _annotations(args: argparse.Namespace) -> int:
     return 0 if validation_report(document, policy)["valid"] else 1
 
 
+def _sarif(args: argparse.Namespace) -> int:
+    document = load_document(args.file)
+    policy = _load_policy(args.policy)
+    result = sarif_report(document, artifact_uri=args.artifact_uri or args.file, policy=policy)
+    _write(json.dumps(result, indent=2, ensure_ascii=False) + "\n", args.output)
+    return 0 if result["runs"][0]["properties"]["valid"] else 1
+
+
 def _gate(args: argparse.Namespace) -> int:
     result = breaking_change_report(
         load_document(args.old),
@@ -169,7 +178,7 @@ def _review(args: argparse.Namespace) -> int:
         _load_policy(args.policy),
     )
     if args.format == "markdown":
-        _write(review_markdown(result), args.output)
+        _write(review_markdown(result, max_items=args.max_items), args.output)
     else:
         _write(_serialize(result, args.format), args.output)
     return 0 if result["passed"] else 1
@@ -322,6 +331,13 @@ def build_parser() -> argparse.ArgumentParser:
     annotations.add_argument("--annotation-file", help="File label used in GitHub annotations; defaults to the mapping path")
     annotations.set_defaults(func=_annotations)
 
+    sarif = sub.add_parser("sarif", help="Generate file-level SARIF governance evidence without invented line numbers")
+    sarif.add_argument("file")
+    sarif.add_argument("--policy")
+    sarif.add_argument("--artifact-uri", help="Repository-relative artifact URI; defaults to the mapping path")
+    sarif.add_argument("--output", "-o")
+    sarif.set_defaults(func=_sarif)
+
     gate = sub.add_parser("gate", help="Fail when a mapping revision violates breaking-change policy")
     gate.add_argument("old")
     gate.add_argument("new")
@@ -335,6 +351,7 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("new")
     review.add_argument("--policy")
     review.add_argument("--format", choices=("yaml", "json", "markdown"), default="json")
+    review.add_argument("--max-items", type=int, default=20, help="Maximum events and diagnostics shown in Markdown summaries")
     review.add_argument("--output", "-o")
     review.set_defaults(func=_review)
 
