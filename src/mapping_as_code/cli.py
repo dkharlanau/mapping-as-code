@@ -17,6 +17,7 @@ from .adapters import (
 from .annotations import github_annotations
 from .artifacts import catalog_html, catalog_markdown, release_bundle, source_sha256, traceability_matrix
 from .change_projection import to_enterprise_change_transition
+from .composition import compose_manifest
 from .core import diff_documents, lineage_graph, lineage_mermaid, mapping_summary, validate_document
 from .ecosystem import ecosystem_bundle
 from .governance import breaking_change_report, quality_scorecard, validation_report
@@ -125,6 +126,18 @@ def _lineage(args: argparse.Namespace) -> int:
 def _import(args: argparse.Namespace) -> int:
     document = import_tabular(args.file, value_maps_path=args.value_maps)
     _write(_serialize(document, args.format), args.output)
+    return 0
+
+
+def _compose(args: argparse.Namespace) -> int:
+    document, report = compose_manifest(args.manifest)
+    _write(_serialize(document, args.format), args.output)
+    if args.report_output:
+        Path(args.report_output).write_text(
+            json.dumps(report, indent=2, sort_keys=False, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        print(args.report_output)
     return 0
 
 
@@ -312,6 +325,13 @@ def build_parser() -> argparse.ArgumentParser:
     importer.add_argument("--format", choices=("yaml", "json"), default="yaml")
     importer.add_argument("--output", "-o")
     importer.set_defaults(func=_import)
+
+    compose = sub.add_parser("compose", help="Compose one base mapping with sandboxed reusable fragments")
+    compose.add_argument("manifest")
+    compose.add_argument("--format", choices=("yaml", "json"), default="yaml")
+    compose.add_argument("--output", "-o")
+    compose.add_argument("--report-output", help="Optional JSON provenance report for the composition")
+    compose.set_defaults(func=_compose)
 
     score = sub.add_parser("score", help="Calculate a transparent mapping quality score")
     score.add_argument("file")
