@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dkharlanau.github.io/mapping-as-code/schema/release-bundle.schema.json",
+  "title": "Mapping as Code release bundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["bundle_version", "mapping_id", "source", "canonical_sha256", "validation", "traceability", "lineage"],
+  "properties": {
+    "bundle_version": {"const": 1},
+    "mapping_id": {"type": ["string", "null"]},
+    "source": {
+      "type": "object",
+      "required": ["name", "sha256"],
+      "properties": {
+        "name": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "canonical_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "validation": {"type": "object"},
+    "traceability": {"type": "array", "items": {"type": "object"}},
+    "lineage": {
+      "type": "object",
+      "required": ["nodes", "edges"],
+      "properties": {
+        "nodes": {"type": "array", "items": {"type": "object"}},
+        "edges": {"type": "array", "items": {"type": "object"}}
+      },
+      "additionalProperties": false
+    }
+  }
+}
