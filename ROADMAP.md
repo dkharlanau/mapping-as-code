@@ -37,15 +37,27 @@
 - [x] criticality projected into materiality and visual status
 - [x] projection contract tests and CI smoke tests
 
-## P0 — governance and generated evidence
+## Shipped — v0.4 governance and generated evidence
 
-- [ ] configurable policy packs for critical fields, ownership, and rationale
-- [ ] mapping quality scorecard
-- [ ] generated Markdown/HTML mapping catalog
-- [ ] traceability matrix
-- [ ] machine-readable validation report schema
-- [ ] breaking-change policy and CI gate
-- [ ] release bundle with source hash and validation evidence
+- [x] configurable policy packs for critical fields, ownership, and rationale
+- [x] transparent mapping quality scorecard
+- [x] generated Markdown/HTML mapping catalog
+- [x] traceability matrix
+- [x] machine-readable validation report schema
+- [x] breaking-change policy and CI gate
+- [x] release bundle with raw source hash, canonical hash, validation evidence, traceability, and lineage
+- [x] governance policy JSON Schema
+- [x] release bundle JSON Schema
+- [x] schema conformance tests for policies and generated evidence
+
+## P0 — PR-native governance and retained baseline
+
+- [ ] reusable GitHub Action for validation + semantic gate
+- [ ] PR comment summary with quality delta and breaking events
+- [ ] retained baseline resolver from Git ref/path
+- [ ] quality-score delta between revisions
+- [ ] evidence artifact upload from CI
+- [ ] SARIF-style or annotation-friendly diagnostics where useful
 
 ## P1 — deeper interoperability
 
