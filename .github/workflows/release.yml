@@ -1,0 +1,119 @@
+name: Release
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - pyproject.toml
+      - CHANGELOG.md
+      - docs/releases.md
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Read package version and verify tag
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(python - <<'PY'
+          import tomllib
+          from pathlib import Path
+          data = tomllib.loads(Path('pyproject.toml').read_text(encoding='utf-8'))
+          print(data['project']['version'])
+          PY
+          )
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" != "v${VERSION}" ]]; then
+            echo "release tag ${GITHUB_REF_NAME} does not match package version ${VERSION}" >&2
+            exit 1
+          fi
+
+      - name: Install release tooling
+        run: python -m pip install --upgrade build twine
+
+      - name: Build sdist and wheel
+        run: python -m build
+
+      - name: Check package metadata
+        run: python -m twine check dist/*
+
+      - name: Install built wheel in a clean environment
+        shell: bash
+        run: |
+          python -m venv /tmp/mapping-release-venv
+          /tmp/mapping-release-venv/bin/python -m pip install --upgrade pip
+          /tmp/mapping-release-venv/bin/python -m pip install dist/*.whl
+          /tmp/mapping-release-venv/bin/map-code --help >/tmp/map-code-help.txt
+          /tmp/mapping-release-venv/bin/map-code validate examples/customer-master.yaml --format json >/tmp/mapping-validation.json
+          test -s /tmp/map-code-help.txt
+          test -s /tmp/mapping-validation.json
+
+      - name: Upload verified distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: mapping-as-code-${{ steps.version.outputs.version }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  github-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download verified distribution
+        uses: actions/download-artifact@v4
+        with:
+          name: mapping-as-code-${{ needs.verify.outputs.version }}
+          path: dist
+
+      - name: Create immutable GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" dist/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Mapping as Code ${GITHUB_REF_NAME}" \
+            --generate-notes \
+            --verify-tag
+
+  pypi:
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PYPI_PUBLISH_ENABLED == 'true'
+    needs: verify
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Download verified distribution
+        uses: actions/download-artifact@v4
+        with:
+          name: mapping-as-code-${{ needs.verify.outputs.version }}
+          path: dist
+
+      - name: Publish through PyPI Trusted Publisher
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
