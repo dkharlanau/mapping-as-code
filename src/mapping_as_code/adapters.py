@@ -300,6 +300,8 @@ def to_reconciliation(
     target_file: str,
     source_key: str | list[str],
     target_key: str | list[str],
+    mapping_artifact_file: str | None = None,
+    mapping_artifact_sha256: str | None = None,
 ) -> dict[str, Any]:
     mapping = _mapping(document)
     source = mapping.get("source") if isinstance(mapping.get("source"), dict) else {}
@@ -347,7 +349,12 @@ def to_reconciliation(
             }
             if transform_type == "lookup":
                 reference = transform.get("reference")
-                if reference in value_maps and isinstance(value_maps[reference], dict):
+                if mapping_artifact_file:
+                    check["map_ref"] = {
+                        "artifact": "mapping-source",
+                        "field": str(field.get("id") or f"field-{index}"),
+                    }
+                elif reference in value_maps and isinstance(value_maps[reference], dict):
                     check["map"] = value_maps[reference]
             checks.append(check)
             if criticality in {"high", "critical"}:
@@ -358,7 +365,11 @@ def to_reconciliation(
         "object": {"type": str(target.get("object") or source.get("object") or "mapped-object")},
         "reconciliation": {
             "name": f'{mapping.get("id", "mapping")} generated reconciliation',
-            "description": "Generated from Mapping as Code; only deterministic copy/lookup mappings become field checks.",
+            "description": (
+                "Linked to the authoritative Mapping as Code artifact; deterministic copy/lookup mappings become field checks."
+                if mapping_artifact_file
+                else "Detached Mapping as Code snapshot; deterministic copy/lookup mappings become field checks."
+            ),
         },
         "source": source_endpoint,
         "target": target_endpoint,
@@ -367,8 +378,14 @@ def to_reconciliation(
             "tool": "mapping-as-code",
             "mapping_id": mapping.get("id"),
             "schema_version": document.get("schema_version"),
+            "projection_mode": "linked_source" if mapping_artifact_file else "detached_snapshot",
         },
     }
+    if mapping_artifact_file:
+        artifact: dict[str, Any] = {"file": mapping_artifact_file}
+        if mapping_artifact_sha256:
+            artifact["sha256"] = mapping_artifact_sha256
+        result["mapping_artifacts"] = {"mapping-source": artifact}
     if materiality_fields:
         result["materiality"] = {"fields": materiality_fields}
     return result

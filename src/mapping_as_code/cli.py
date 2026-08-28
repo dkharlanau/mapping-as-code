@@ -66,6 +66,8 @@ def _reconciliation_config(args: argparse.Namespace) -> dict[str, Any] | None:
     missing = [name for name, value in values.items() if not value]
     if missing:
         raise ValueError("reconciliation configuration requires " + ", ".join(missing))
+    values["mapping_artifact_file"] = getattr(args, "mapping_artifact_file", None)
+    values["mapping_artifact_sha256"] = getattr(args, "mapping_artifact_sha256", None)
     return values
 
 
@@ -284,6 +286,8 @@ def _project(args: argparse.Namespace) -> int:
             target_file=str(config["target_file"]),
             source_key=config["source_key"],
             target_key=config["target_key"],
+            mapping_artifact_file=config.get("mapping_artifact_file"),
+            mapping_artifact_sha256=config.get("mapping_artifact_sha256"),
         )
     else:
         raise ValueError(f"unsupported projection target: {args.target}")
@@ -296,6 +300,14 @@ def _add_reconciliation_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--target-file")
     parser.add_argument("--source-key")
     parser.add_argument("--target-key")
+    parser.add_argument(
+        "--mapping-artifact-file",
+        help="RAC-relative path to the authoritative Mapping as Code YAML; lookup checks use map_ref instead of copied maps.",
+    )
+    parser.add_argument(
+        "--mapping-artifact-sha256",
+        help="Optional 64-character SHA-256 pin for --mapping-artifact-file.",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
