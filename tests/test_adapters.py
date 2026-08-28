@@ -85,8 +85,28 @@ def test_reconciliation_projection_only_generates_safe_field_checks():
     checks = {check["id"]: check for check in result["checks"]}
     assert checks["customer-id"]["type"] == "field_match"
     assert checks["country"]["map"] == {"DE": "DE", "US": "US"}
+    assert result["generated_from"]["projection_mode"] == "detached_snapshot"
+    assert "mapping_artifacts" not in result
     assert "category" not in checks
     assert result["materiality"]["fields"]["BusinessPartner"]["critical"] is True
+
+
+def test_reconciliation_projection_can_link_authoritative_mapping_artifact():
+    digest = "a" * 64
+    result = to_reconciliation(
+        sample(),
+        source_file="legacy.csv",
+        target_file="s4.csv",
+        source_key="customer_id",
+        target_key="BusinessPartner",
+        mapping_artifact_file="mapping.yaml",
+        mapping_artifact_sha256=digest,
+    )
+    checks = {check["id"]: check for check in result["checks"]}
+    assert checks["country"]["map_ref"] == {"artifact": "mapping-source", "field": "country"}
+    assert "map" not in checks["country"]
+    assert result["mapping_artifacts"]["mapping-source"] == {"file": "mapping.yaml", "sha256": digest}
+    assert result["generated_from"]["projection_mode"] == "linked_source"
 
 
 def test_reconciliation_supports_composite_keys():

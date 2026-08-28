@@ -88,6 +88,8 @@ def ecosystem_bundle(
                 target_file=str(reconciliation["target_file"]),
                 source_key=reconciliation["source_key"],
                 target_key=reconciliation["target_key"],
+                mapping_artifact_file=reconciliation.get("mapping_artifact_file"),
+                mapping_artifact_sha256=reconciliation.get("mapping_artifact_sha256"),
             ),
             "reconciliation-as-code",
         )

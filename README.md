@@ -224,11 +224,13 @@ map-code project mapping.yaml \
   --target-file s4.csv \
   --source-key customer_id \
   --target-key BusinessPartner \
+  --mapping-artifact-file mapping.yaml \
+  --mapping-artifact-sha256 <sha256> \
   --format yaml \
   -o reconciliation.yaml
 ```
 
-Only deterministic `copy` and `lookup` mappings automatically become field checks. Arbitrary expressions are not converted into misleading equality checks.
+Linked mode is the canonical source-of-truth integration: RAC lookup checks use `map_ref` and evidence pins the Mapping artifact. Omitting `--mapping-artifact-file` intentionally creates a detached snapshot with inline value maps for export/archive use. Only deterministic `copy` and `lookup` mappings automatically become field checks; arbitrary expressions are not converted into misleading equality checks. See [Mapping → Reconciliation integration](docs/reconciliation-integration.md).
 
 ### Enterprise Change Graph
 
