@@ -1,0 +1,152 @@
+name: linked-rac-projection
+
+on:
+  push:
+    branches:
+      - agent/linked-rac-projection
+    paths:
+      - .github/workflows/linked-rac-projection.yml
+
+permissions:
+  contents: write
+
+jobs:
+  implement-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/linked-rac-projection
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply source-of-truth integration changes
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          adapters = Path('src/mapping_as_code/adapters.py')
+          text = adapters.read_text(encoding='utf-8')
+          old = '''    target_file: str,\n    source_key: str | list[str],\n    target_key: str | list[str],\n) -> dict[str, Any]:'''
+          new = '''    target_file: str,\n    source_key: str | list[str],\n    target_key: str | list[str],\n    mapping_artifact_file: str | None = None,\n    mapping_artifact_sha256: str | None = None,\n) -> dict[str, Any]:'''
+          if old not in text:
+              raise SystemExit('to_reconciliation signature marker not found')
+          text = text.replace(old, new, 1)
+
+          old = '''            if transform_type == "lookup":\n                reference = transform.get("reference")\n                if reference in value_maps and isinstance(value_maps[reference], dict):\n                    check["map"] = value_maps[reference]\n'''
+          new = '''            if transform_type == "lookup":\n                reference = transform.get("reference")\n                if mapping_artifact_file:\n                    check["map_ref"] = {\n                        "artifact": "mapping-source",\n                        "field": str(field.get("id") or f"field-{index}"),\n                    }\n                elif reference in value_maps and isinstance(value_maps[reference], dict):\n                    check["map"] = value_maps[reference]\n'''
+          if old not in text:
+              raise SystemExit('lookup projection marker not found')
+          text = text.replace(old, new, 1)
+
+          old = '''            "description": "Generated from Mapping as Code; only deterministic copy/lookup mappings become field checks.",\n'''
+          new = '''            "description": (\n                "Linked to the authoritative Mapping as Code artifact; deterministic copy/lookup mappings become field checks."\n                if mapping_artifact_file\n                else "Detached Mapping as Code snapshot; deterministic copy/lookup mappings become field checks."\n            ),\n'''
+          if old not in text:
+              raise SystemExit('description marker not found')
+          text = text.replace(old, new, 1)
+
+          old = '''        "generated_from": {\n            "tool": "mapping-as-code",\n            "mapping_id": mapping.get("id"),\n            "schema_version": document.get("schema_version"),\n        },\n    }\n    if materiality_fields:\n'''
+          new = '''        "generated_from": {\n            "tool": "mapping-as-code",\n            "mapping_id": mapping.get("id"),\n            "schema_version": document.get("schema_version"),\n            "projection_mode": "linked_source" if mapping_artifact_file else "detached_snapshot",\n        },\n    }\n    if mapping_artifact_file:\n        artifact: dict[str, Any] = {"file": mapping_artifact_file}\n        if mapping_artifact_sha256:\n            artifact["sha256"] = mapping_artifact_sha256\n        result["mapping_artifacts"] = {"mapping-source": artifact}\n    if materiality_fields:\n'''
+          if old not in text:
+              raise SystemExit('generated_from marker not found')
+          adapters.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          cli = Path('src/mapping_as_code/cli.py')
+          text = cli.read_text(encoding='utf-8')
+          old = '''    values = {\n        "source_file": getattr(args, "source_file", None),\n        "target_file": getattr(args, "target_file", None),\n        "source_key": getattr(args, "source_key", None),\n        "target_key": getattr(args, "target_key", None),\n    }\n    if not any(values.values()):\n        return None\n    missing = [name for name, value in values.items() if not value]\n    if missing:\n        raise ValueError("reconciliation configuration requires " + ", ".join(missing))\n    return values\n'''
+          new = '''    values = {\n        "source_file": getattr(args, "source_file", None),\n        "target_file": getattr(args, "target_file", None),\n        "source_key": getattr(args, "source_key", None),\n        "target_key": getattr(args, "target_key", None),\n    }\n    if not any(values.values()):\n        return None\n    missing = [name for name, value in values.items() if not value]\n    if missing:\n        raise ValueError("reconciliation configuration requires " + ", ".join(missing))\n    values["mapping_artifact_file"] = getattr(args, "mapping_artifact_file", None)\n    values["mapping_artifact_sha256"] = getattr(args, "mapping_artifact_sha256", None)\n    return values\n'''
+          if old not in text:
+              raise SystemExit('reconciliation config marker not found')
+          text = text.replace(old, new, 1)
+
+          old = '''            source_key=config["source_key"],\n            target_key=config["target_key"],\n        )\n'''
+          new = '''            source_key=config["source_key"],\n            target_key=config["target_key"],\n            mapping_artifact_file=config.get("mapping_artifact_file"),\n            mapping_artifact_sha256=config.get("mapping_artifact_sha256"),\n        )\n'''
+          if old not in text:
+              raise SystemExit('project call marker not found')
+          text = text.replace(old, new, 1)
+
+          old = '''    parser.add_argument("--source-key")\n    parser.add_argument("--target-key")\n'''
+          new = '''    parser.add_argument("--source-key")\n    parser.add_argument("--target-key")\n    parser.add_argument(\n        "--mapping-artifact-file",\n        help="RAC-relative path to the authoritative Mapping as Code YAML; lookup checks use map_ref instead of copied maps.",\n    )\n    parser.add_argument(\n        "--mapping-artifact-sha256",\n        help="Optional 64-character SHA-256 pin for --mapping-artifact-file.",\n    )\n'''
+          if old not in text:
+              raise SystemExit('reconciliation args marker not found')
+          cli.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          ecosystem = Path('src/mapping_as_code/ecosystem.py')
+          text = ecosystem.read_text(encoding='utf-8')
+          old = '''                source_key=reconciliation["source_key"],\n                target_key=reconciliation["target_key"],\n            ),\n'''
+          new = '''                source_key=reconciliation["source_key"],\n                target_key=reconciliation["target_key"],\n                mapping_artifact_file=reconciliation.get("mapping_artifact_file"),\n                mapping_artifact_sha256=reconciliation.get("mapping_artifact_sha256"),\n            ),\n'''
+          if old not in text:
+              raise SystemExit('ecosystem projection marker not found')
+          ecosystem.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          tests = Path('tests/test_adapters.py')
+          text = tests.read_text(encoding='utf-8')
+          old = '''    assert checks["country"]["map"] == {"DE": "DE", "US": "US"}\n    assert "category" not in checks\n    assert result["materiality"]["fields"]["BusinessPartner"]["critical"] is True\n\n\ndef test_reconciliation_supports_composite_keys():\n'''
+          new = '''    assert checks["country"]["map"] == {"DE": "DE", "US": "US"}\n    assert result["generated_from"]["projection_mode"] == "detached_snapshot"\n    assert "mapping_artifacts" not in result\n    assert "category" not in checks\n    assert result["materiality"]["fields"]["BusinessPartner"]["critical"] is True\n\n\ndef test_reconciliation_projection_can_link_authoritative_mapping_artifact():\n    digest = "a" * 64\n    result = to_reconciliation(\n        sample(),\n        source_file="legacy.csv",\n        target_file="s4.csv",\n        source_key="customer_id",\n        target_key="BusinessPartner",\n        mapping_artifact_file="mapping.yaml",\n        mapping_artifact_sha256=digest,\n    )\n    checks = {check["id"]: check for check in result["checks"]}\n    assert checks["country"]["map_ref"] == {"artifact": "mapping-source", "field": "country"}\n    assert "map" not in checks["country"]\n    assert result["mapping_artifacts"]["mapping-source"] == {"file": "mapping.yaml", "sha256": digest}\n    assert result["generated_from"]["projection_mode"] == "linked_source"\n\n\ndef test_reconciliation_supports_composite_keys():\n'''
+          if old not in text:
+              raise SystemExit('adapter test marker not found')
+          tests.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          readme = Path('README.md')
+          text = readme.read_text(encoding='utf-8')
+          old = '''map-code project mapping.yaml \\\n  --target reconciliation-as-code \\\n  --source-file legacy.csv \\\n  --target-file s4.csv \\\n  --source-key customer_id \\\n  --target-key BusinessPartner \\\n  --format yaml \\\n  -o reconciliation.yaml\n```\n\nOnly deterministic `copy` and `lookup` mappings automatically become field checks. Arbitrary expressions are not converted into misleading equality checks.\n'''
+          new = '''map-code project mapping.yaml \\\n  --target reconciliation-as-code \\\n  --source-file legacy.csv \\\n  --target-file s4.csv \\\n  --source-key customer_id \\\n  --target-key BusinessPartner \\\n  --mapping-artifact-file mapping.yaml \\\n  --mapping-artifact-sha256 <sha256> \\\n  --format yaml \\\n  -o reconciliation.yaml\n```\n\nLinked mode is the canonical source-of-truth integration: RAC lookup checks use `map_ref` and evidence pins the Mapping artifact. Omitting `--mapping-artifact-file` intentionally creates a detached snapshot with inline value maps for export/archive use. Only deterministic `copy` and `lookup` mappings automatically become field checks; arbitrary expressions are not converted into misleading equality checks. See [Mapping → Reconciliation integration](docs/reconciliation-integration.md).\n'''
+          if old not in text:
+              raise SystemExit('README reconciliation example marker not found')
+          readme.write_text(text.replace(old, new, 1), encoding='utf-8')
+
+          Path('docs/reconciliation-integration.md').write_text('''# Mapping → Reconciliation integration\n\nMapping as Code owns transformation intent. Reconciliation as Code owns the evidence that source and target state satisfy explicit controls. The same lookup rule should not be maintained independently in both products.\n\n## Canonical mode: linked source\n\nUse a RAC-relative Mapping artifact path and, for governed/release use, pin its SHA-256. The generated reconciliation keeps copy checks directly and represents lookup checks with RAC `map_ref`. RAC resolves the original Mapping as Code field at runtime and records the exact artifact digest in evidence.\n\n```bash\nmap-code project mapping.yaml \\\n  --target reconciliation-as-code \\\n  --source-file legacy.csv \\\n  --target-file s4.csv \\\n  --source-key customer_id \\\n  --target-key BusinessPartner \\\n  --mapping-artifact-file mapping.yaml \\\n  --mapping-artifact-sha256 <64-hex-sha256> \\\n  --format yaml \\\n  -o reconciliation.yaml\n```\n\nThe path is interpreted by RAC relative to the reconciliation specification, so generate/copy artifacts into a stable layout rather than relying on a workstation-specific absolute path.\n\nThe generated contract declares `generated_from.projection_mode: linked_source`. This is the preferred mode when Mapping as Code remains the maintained transformation source of truth.\n\n## Detached mode: snapshot\n\nIf `--mapping-artifact-file` is omitted, Mapping as Code embeds compatible lookup tables into the generated RAC spec. The contract declares `generated_from.projection_mode: detached_snapshot`.\n\nUse this only when a self-contained point-in-time artifact is intentionally required, for example an archive, handoff bundle or isolated fixture. Editing the detached map later creates an independent source of truth and is therefore not the normal portfolio architecture.\n\n## Boundaries\n\n- Mapping as Code does not decide whether migrated data passed reconciliation.\n- Reconciliation as Code does not become the authoring system for transformation rules merely because it can consume them.\n- Only Mapping as Code `lookup` transforms are imported through `map_ref` today. Unsupported/ambiguous transforms fail or remain outside generated equality checks rather than being guessed.\n- Mapping artifact SHA changes alter RAC configuration provenance; a stale SHA pin fails closed.\n\nThis rule keeps the cross-repository chain directional: **author transformation once → reference it → produce reconciliation evidence**.\n''', encoding='utf-8')
+          PY
+      - name: Install Mapping as Code development dependencies
+        run: python -m pip install -e '.[dev]'
+      - name: Run Mapping as Code tests
+        run: python -m pytest -q
+      - name: Exercise linked projection against current RAC main
+        run: |
+          mkdir -p /tmp/mapping-rac
+          cp examples/customer-master.yaml /tmp/mapping-rac/mapping.yaml
+          cat > /tmp/mapping-rac/legacy.csv <<'CSV'
+          customer_id,name,country
+          1001,Example GmbH,DE
+          1002,Example Inc,US
+          CSV
+          cat > /tmp/mapping-rac/s4.csv <<'CSV'
+          BusinessPartner,OrganizationBPName1,Country
+          1001,Example GmbH,DE
+          1002,Example Inc,US
+          CSV
+          SHA=$(sha256sum /tmp/mapping-rac/mapping.yaml | cut -d' ' -f1)
+          map-code project /tmp/mapping-rac/mapping.yaml \
+            --target reconciliation-as-code \
+            --source-file legacy.csv \
+            --target-file s4.csv \
+            --source-key customer_id \
+            --target-key BusinessPartner \
+            --mapping-artifact-file mapping.yaml \
+            --mapping-artifact-sha256 "$SHA" \
+            --format yaml \
+            -o /tmp/mapping-rac/reconciliation.yaml
+          python -m pip install 'git+https://github.com/dkharlanau/reconciliation-as-code.git@main'
+          rac validate /tmp/mapping-rac/reconciliation.yaml
+          rac run /tmp/mapping-rac/reconciliation.yaml \
+            --evidence /tmp/mapping-rac/evidence.json \
+            --report /tmp/mapping-rac/evidence.md
+          python - <<'PY'
+          import json
+          evidence = json.load(open('/tmp/mapping-rac/evidence.json', encoding='utf-8'))
+          assert evidence['status'] == 'passed'
+          artifact = evidence['inputs']['mapping:mapping-source']
+          assert artifact['mapping_id'] == 'legacy-customer-to-s4-business-partner'
+          assert artifact['fields'] == ['customer-country']
+          PY
+      - name: Commit verified implementation
+        run: |
+          rm .github/workflows/linked-rac-projection.yml
+          find . -type d -name '*.egg-info' -prune -exec rm -rf {} +
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "feat: make linked RAC projection preserve mapping source of truth"
+          git push origin HEAD:agent/linked-rac-projection
