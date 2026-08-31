@@ -357,17 +357,20 @@ Mapping as Code is **not an ETL engine** and does not execute arbitrary expressi
 
 ## Related projects
 
-- [Transformation Graph](https://github.com/dkharlanau/transformation-graph)
-- [Reconciliation as Code](https://github.com/dkharlanau/reconciliation-as-code)
-- [Enterprise Change Graph](https://github.com/dkharlanau/enterprise-change-graph)
-- [Visual Workbench](https://github.com/dkharlanau/visual-workbench)
-- [Interface as Code](https://github.com/dkharlanau/interface-as-code)
-- [Process as Code](https://github.com/dkharlanau/process-as-code)
-- [Decision Tables as Code](https://github.com/dkharlanau/decision-tables-as-code)
-- [Data Relationship Map](https://github.com/dkharlanau/data-relationship-map)
-- [Cutover Graph](https://github.com/dkharlanau/cutover-graph)
-- [Project Evidence Graph](https://github.com/dkharlanau/project-evidence-graph)
+See [Mapping as Code in the as-code suite](docs/as-code-suite.md) for runnable handoffs and their limits.
+
+- [Interface as Code](https://github.com/dkharlanau/interface-as-code) — bind the canonical mapping through the official `mapping.ref` without inventing interface operations.
+- [Reconciliation as Code](https://github.com/dkharlanau/reconciliation-as-code) — reuse a pinned lookup mapping or generate a reviewed starting reconciliation contract.
+- [Process as Code](https://github.com/dkharlanau/process-as-code) — reference mapping artifacts for process traceability without evaluating transformations.
+- [Decision Tables as Code](https://github.com/dkharlanau/decision-tables-as-code) — keep bounded decisions distinct from field mappings and transformation expressions.
 
 ## Status
 
 **Active — working v0.5.** Core, spreadsheet bridge, governance, PR-native review, pinned-schema interoperability, portable lineage exports, and cross-repository evidence are implemented and continuously tested.
+
+## About the author
+
+Created and maintained by **Dzmitryi Kharlanau**, an SAP consultant and system analyst working across enterprise architecture, data, integration, operations, and practical AI.
+
+- [Website and knowledge base](https://dkharlanau.github.io/)
+- [LinkedIn](https://www.linkedin.com/in/dkharlanau/)

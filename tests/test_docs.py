@@ -9,6 +9,12 @@ from mapping_as_code.cli import build_parser
 
 ROOT = Path(__file__).parents[1]
 LINK_RE = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+AUTHOR_FOOTER = """## About the author
+
+Created and maintained by **Dzmitryi Kharlanau**, an SAP consultant and system analyst working across enterprise architecture, data, integration, operations, and practical AI.
+
+- [Website and knowledge base](https://dkharlanau.github.io/)
+- [LinkedIn](https://www.linkedin.com/in/dkharlanau/)"""
 
 
 def test_local_markdown_links_resolve():
@@ -41,3 +47,19 @@ def test_public_guidance_does_not_advertise_retired_interface():
     assert "python -m mac" not in guidance
     for command in ("mac schema", "mac coverage", "mac compile", "mac evidence-bundle"):
         assert command not in guidance
+
+
+def test_readme_ends_with_exact_author_footer_and_suite_guide():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8").rstrip()
+    assert readme.endswith(AUTHOR_FOOTER)
+    assert readme.count("## About the author") == 1
+    assert "docs/as-code-suite.md" in readme
+    for repository in ("decision-tables-as-code", "interface-as-code", "process-as-code", "reconciliation-as-code"):
+        assert f"https://github.com/dkharlanau/{repository}" in readme
+
+
+def test_agent_manifest_navigates_the_core_suite():
+    manifest = json.loads((ROOT / "docs" / "agent-manifest.json").read_text(encoding="utf-8"))
+    assert {item["product"] for item in manifest["related"]} == {
+        "decision-tables-as-code", "interface-as-code", "process-as-code", "reconciliation-as-code"
+    }

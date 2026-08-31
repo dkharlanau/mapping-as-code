@@ -15,8 +15,9 @@
   ],
   "safe_agent_loop": ["read README and contract", "validate", "inspect quality and traceability", "generate only when requested", "return generated paths plus evidence"],
   "related": [
-    {"product":"interface-as-code","relationship":"consume target contract/schema"},
-    {"product":"transformation-graph","relationship":"export transformation dependencies"},
-    {"product":"reconciliation-as-code","relationship":"assure transformed outcomes"}
+    {"product":"interface-as-code","relationship":"tested endpoint-safe binding through the typed mapping.ref artifact reference"},
+    {"product":"reconciliation-as-code","relationship":"project a starting v1 control or provide a pinned lookup artifact for direct consumption"},
+    {"product":"process-as-code","relationship":"generic mapping-artifact traceability without transform evaluation"},
+    {"product":"decision-tables-as-code","relationship":"separate bounded decision rules from field transformation intent"}
   ]
 }

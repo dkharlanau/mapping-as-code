@@ -15,6 +15,7 @@ Mapping as Code turns source-to-target mapping intent into a deterministic contr
 - [Catalog discovery and scale checks](catalog-and-scale.md) — repository indexes, search, duplicate-ID gates, and synthetic benchmarks.
 - [Interoperability](interoperability.md) — supported projections and pinned conformance contracts.
 - [Reconciliation integration](reconciliation-integration.md) — linked and detached Reconciliation as Code projections.
+- [As-code suite handoffs](as-code-suite.md) — tested interface binding, reconciliation projection, and honest ownership boundaries.
 - [Composition](composition.md) — deterministic provenance for multi-file mapping sources.
 
 ## Release and project boundaries
