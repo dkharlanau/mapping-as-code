@@ -16,6 +16,7 @@ from .adapters import (
 )
 from .annotations import github_annotations
 from .artifacts import catalog_html, catalog_markdown, release_bundle, source_sha256, traceability_matrix
+from .catalog_index import build_catalog_index, search_catalog
 from .change_projection import to_enterprise_change_transition
 from .composition import compose_manifest
 from .core import diff_documents, lineage_graph, lineage_mermaid, mapping_summary, validate_document
@@ -24,6 +25,7 @@ from .governance import breaking_change_report, quality_scorecard, validation_re
 from .graph_exports import lineage_cypher, lineage_graphml
 from .interface_binding import bind_interface_contract
 from .io import load_document
+from .performance import benchmark_mapping
 from .review import review_markdown, review_report
 from .sarif import sarif_report
 from .tabular import import_tabular
@@ -214,6 +216,33 @@ def _catalog(args: argparse.Namespace) -> int:
     return 0
 
 
+def _catalog_index(args: argparse.Namespace) -> int:
+    result = build_catalog_index(args.root)
+    _write(_serialize(result, args.format), args.output)
+    if args.fail_on_duplicates and result["duplicates"]:
+        return 1
+    return 0
+
+
+def _catalog_search(args: argparse.Namespace) -> int:
+    index = build_catalog_index(args.root)
+    matches = search_catalog(index, args.query, limit=args.limit)
+    result = {
+        "query": args.query,
+        "root": index["root"],
+        "matches": matches,
+        "summary": {"matches": len(matches), "indexed_mappings": index["summary"]["mapping_documents"]},
+    }
+    _write(_serialize(result, args.format), args.output)
+    return 0
+
+
+def _benchmark(args: argparse.Namespace) -> int:
+    result = benchmark_mapping(args.fields, max_seconds=args.max_seconds)
+    _write(_serialize(result, args.format), args.output)
+    return 0 if result["passed"] else 1
+
+
 def _bundle(args: argparse.Namespace) -> int:
     document = load_document(args.file)
     result = release_bundle(
@@ -399,6 +428,28 @@ def build_parser() -> argparse.ArgumentParser:
     catalog.add_argument("--format", choices=("markdown", "html"), default="markdown")
     catalog.add_argument("--output", "-o")
     catalog.set_defaults(func=_catalog)
+
+    catalog_index = sub.add_parser("catalog-index", help="Build a deterministic index for a mapping repository or directory")
+    catalog_index.add_argument("root")
+    catalog_index.add_argument("--fail-on-duplicates", action="store_true")
+    catalog_index.add_argument("--format", choices=("yaml", "json"), default="json")
+    catalog_index.add_argument("--output", "-o")
+    catalog_index.set_defaults(func=_catalog_index)
+
+    catalog_search = sub.add_parser("catalog-search", help="Search mapping metadata in a repository or directory")
+    catalog_search.add_argument("root")
+    catalog_search.add_argument("query")
+    catalog_search.add_argument("--limit", type=int, default=20)
+    catalog_search.add_argument("--format", choices=("yaml", "json"), default="json")
+    catalog_search.add_argument("--output", "-o")
+    catalog_search.set_defaults(func=_catalog_search)
+
+    benchmark = sub.add_parser("benchmark", help="Run a deterministic synthetic large-mapping benchmark")
+    benchmark.add_argument("--fields", type=int, default=10000)
+    benchmark.add_argument("--max-seconds", type=float)
+    benchmark.add_argument("--format", choices=("yaml", "json"), default="json")
+    benchmark.add_argument("--output", "-o")
+    benchmark.set_defaults(func=_benchmark)
 
     bundle = sub.add_parser("bundle", help="Build an auditable mapping release bundle")
     bundle.add_argument("file")

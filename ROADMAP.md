@@ -75,10 +75,10 @@
 
 ## P0 — scale and enterprise ingestion
 
-- [ ] multi-file mapping composition
-- [ ] mapping namespaces and reusable fragments
-- [ ] large mapping-set benchmarks
-- [ ] mapping catalog search/index
+- [x] multi-file mapping composition
+- [x] mapping namespaces and reusable fragments
+- [x] large mapping-set benchmarks
+- [x] mapping catalog search/index
 - [ ] import profiles for common migration/integration workbook layouts
 - [ ] optional agent-facing context bundles
 

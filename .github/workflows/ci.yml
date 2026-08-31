@@ -43,6 +43,18 @@ jobs:
             --report-output /tmp/composition-report.json
           map-code validate /tmp/composed-mapping.yaml --format json
           test -s /tmp/composition-report.json
+      - name: Exercise mapping-set discovery and scale evidence
+        run: |
+          map-code catalog-index examples/catalog \
+            --fail-on-duplicates \
+            --output /tmp/mapping-index.json
+          map-code catalog-search examples/catalog customer \
+            --output /tmp/mapping-search.json
+          map-code benchmark --fields 1000 \
+            --output /tmp/mapping-benchmark.json
+          test -s /tmp/mapping-index.json
+          test -s /tmp/mapping-search.json
+          test -s /tmp/mapping-benchmark.json
       - name: Exercise semantic diff
         run: map-code diff examples/customer-master.yaml examples/customer-master-v2.yaml --format json
       - name: Exercise lineage exports

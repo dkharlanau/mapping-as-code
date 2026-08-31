@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=69", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,14 +8,19 @@ version = "0.5.0"
 description = "Governed enterprise mapping contracts with workbook import, PR gates, auditable evidence, lineage exports, and cross-repository interoperability."
 readme = "README.md"
 requires-python = ">=3.10"
-license = {file = "LICENSE"}
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{name = "Dzmitryi Kharlanau"}]
 dependencies = ["PyYAML>=6.0"]
 classifiers = [
   "Programming Language :: Python :: 3",
-  "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
 ]
+
+[project.urls]
+Documentation = "https://dkharlanau.github.io/mapping-as-code/"
+Repository = "https://github.com/dkharlanau/mapping-as-code"
+Issues = "https://github.com/dkharlanau/mapping-as-code/issues"
 
 [project.optional-dependencies]
 excel = ["openpyxl>=3.1"]

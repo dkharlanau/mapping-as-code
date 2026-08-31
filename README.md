@@ -25,6 +25,7 @@ CSV / Excel / YAML
 - CSV, XLSX/XLSM, YAML, and JSON ingestion;
 - stable field-mapping identities;
 - deterministic validation and required-target coverage;
+- sandboxed multi-file composition with namespaced reusable fragments;
 - value-map, duplicate, and conflict diagnostics;
 - semantic revision diff by `source`, `target`, `transform`, `rules`, and `business` metadata;
 - transparent 0–100 quality score;
@@ -32,6 +33,7 @@ CSV / Excel / YAML
 - breaking-change and quality-regression gates;
 - GitHub annotations, compact PR summaries, file-level SARIF, and a reusable Action/workflow;
 - Markdown/HTML catalogs and traceability matrices;
+- deterministic repository catalog indexes, metadata search, and synthetic scale benchmarks;
 - JSON, Mermaid, GraphML, and Cypher lineage;
 - auditable release bundles with raw and canonical SHA-256;
 - pinned-schema conformance tests for adjacent repositories;
@@ -146,6 +148,23 @@ The Action produces validation evidence, semantic review, Job Summary, workflow 
 For artifact upload and an idempotent PR comment, use the reusable workflow. See [GitHub integration](docs/github-action.md).
 
 ## Evidence
+
+### Mapping-set discovery and scale checks
+
+Build a deterministic index across a repository or directory, then search its mapping metadata:
+
+```bash
+map-code catalog-index mappings/ --output mapping-index.json --fail-on-duplicates
+map-code catalog-search mappings/ "business partner" --output search-results.json
+```
+
+The index reports duplicate mapping IDs and skipped non-mapping documents without treating arbitrary YAML as a mapping. A synthetic benchmark exercises validation, lineage, and quality scoring without customer data:
+
+```bash
+map-code benchmark --fields 10000 --max-seconds 5 --output benchmark.json
+```
+
+Timing thresholds depend on the runner and are opt-in. See [catalog discovery and scale checks](docs/catalog-and-scale.md).
 
 ### Traceability and catalog
 
@@ -288,6 +307,7 @@ This prevents cross-repository adapters from silently drifting as the ecosystem 
 
 ```text
 map-code import <csv|xlsx> ...
+map-code compose <manifest> [-o mapping.yaml]
 map-code validate <file>
 map-code score <file>
 map-code report <file> [--policy ...]
@@ -299,6 +319,9 @@ map-code review <old> <new> [--max-items 20]
 map-code lineage <file> [--format json|mermaid|graphml|cypher]
 map-code traceability <file>
 map-code catalog <file> [--format markdown|html]
+map-code catalog-index <root> [--fail-on-duplicates]
+map-code catalog-search <root> <query> [--limit 20]
+map-code benchmark [--fields 10000] [--max-seconds N]
 map-code bundle <file> [--policy ...]
 map-code ecosystem-bundle <file> [cross-repository options]
 map-code bind-interface <interface> <mapping> --mapping-uri ...
@@ -318,7 +341,10 @@ Governance failures return exit code `1`; parse/import/usage failures return `2`
 
 ## Guides
 
+- [Documentation home](docs/index.md)
 - [Mapping semantics](docs/specification.md)
+- [Multi-file composition](docs/composition.md)
+- [Catalog discovery and scale checks](docs/catalog-and-scale.md)
 - [Workbook import](docs/importing-workbooks.md)
 - [Governance and evidence](docs/governance.md)
 - [GitHub Action/workflow](docs/github-action.md)

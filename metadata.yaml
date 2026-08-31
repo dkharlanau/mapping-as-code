@@ -11,11 +11,11 @@ portfolio:
   brand_value: 10
 
 status: active
-version: 0.3.0
+version: 0.5.0
 
 implementation:
   repository_created: true
-  implementation_status: executable-core-workbook-bridge-interoperability
+  implementation_status: governed-mapping-contract-toolkit
   codex_fit: 5/5
   sap_access_required: false
   package: python
@@ -33,6 +33,10 @@ capabilities:
   - csv-import
   - xlsx-import
   - workbook-value-maps
+  - sandboxed-multi-file-composition
+  - namespaced-reusable-fragments
+  - mapping-catalog-index-search
+  - synthetic-scale-benchmark
   - transformation-graph-projection
   - reconciliation-as-code-projection
   - enterprise-change-graph-projection

@@ -5,9 +5,9 @@ Mapping as Code is a contract-first transformation tool. Treat mapping YAML as s
 ## Working loop
 
 1. Read `README.md`, the relevant mapping contract, and `docs/agent-manifest.json`.
-2. Validate before generating or compiling anything: `python -m mac validate <mapping.yaml>`.
-3. Use schema and coverage commands to inspect scope and gaps.
-4. Compile only an explicitly requested supported target.
+2. Validate before generating anything: `map-code validate <mapping.yaml>`.
+3. Use score, traceability, catalog, and lineage commands to inspect scope and gaps.
+4. Generate only an explicitly requested supported report, bundle, or projection.
 5. Preserve deterministic ordering and generated paths.
 6. Return validation findings, generated artifacts, and evidence references separately.
 
@@ -22,9 +22,9 @@ Mapping as Code is a contract-first transformation tool. Treat mapping YAML as s
 ## Useful commands
 
 ```bash
-python -m mac validate examples/order_mapping.yaml
-python -m mac schema examples/order_mapping.yaml --direction target
-python -m mac coverage examples/order_mapping.yaml
-python -m mac compile examples/order_mapping.yaml --target python --out generated/order_mapping.py
-python -m mac evidence-bundle examples/order_mapping.yaml
+map-code validate examples/customer-master.yaml
+map-code score examples/customer-master.yaml --format json
+map-code traceability examples/customer-master.yaml --output traceability.json
+map-code lineage examples/customer-master.yaml --format mermaid --output lineage.mmd
+map-code bundle examples/customer-master.yaml --output release-bundle.json
 ```
