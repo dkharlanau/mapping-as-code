@@ -61,6 +61,12 @@ See [workbook import](docs/importing-workbooks.md).
 
 ## Canonical mapping contract
 
+YAML and JSON contracts reject duplicate keys, including nested field definitions
+and value maps. A repeated key must not silently replace a mapping or policy before
+validation. Standard YAML anchor/merge defaults with an explicit override remain
+supported. Invalid input returns CLI exit code `2` with the source path and a
+diagnostic on stderr.
+
 ```yaml
 schema_version: "0.1"
 
