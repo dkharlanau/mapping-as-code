@@ -35,6 +35,8 @@ jobs:
           touch _site/.nojekyll
       - name: Setup Pages
         uses: actions/configure-pages@v5
+      - name: Add consent-aware portfolio analytics
+        run: node scripts/inject-portfolio-analytics.mjs _site
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
         with:
