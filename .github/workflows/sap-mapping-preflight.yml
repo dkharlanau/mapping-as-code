@@ -48,9 +48,9 @@ jobs:
           assert r['source']['key']=='KUNNR';
           assert r['target']['key']=='LegacyCustomerID';
           assert r['generated_from']['projection_mode']=='linked_source';
-          a=r['generated_from']['mapping_artifact'];
+          a=r['mapping_artifacts']['mapping-source'];
           assert a['file']=='mapping.yaml' and len(a['sha256'])==64;
           ids={c['id'] for c in r['checks']};
-          assert 'field-name' in ids and 'field-country' in ids and 'field-grouping' in ids;
-          assert 'field-legacy-id' not in ids;
+          assert {'record-coverage','name','country','grouping','sales-org','tax-number'} <= ids;
+          assert 'legacy-id' not in ids;
           print('SAP mapping preflight handoff verified')"
