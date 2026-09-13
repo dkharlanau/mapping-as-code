@@ -26,6 +26,7 @@ def _write_workbook(path: Path, *, country_target: str = "Country") -> None:
             "target_field",
             "transform",
             "reference",
+            "expression",
             "required_source",
             "required_target",
             "owner",
@@ -34,10 +35,70 @@ def _write_workbook(path: Path, *, country_target: str = "Country") -> None:
         ]
     )
     common = ["sap-customer-bp", "SAP-ECC", "Customer", "SAP-S4", "BusinessPartner"]
-    sheet.append(common + ["legacy-id", "KUNNR", "BusinessPartner", "expression", "resolve_via_explicit_identity_crosswalk", True, True, "Master Data", "critical", "Business identity changes and must be resolved explicitly."])
-    sheet.append(common + ["name", "NAME1", "OrganizationName1", "copy", "", True, True, "Master Data", "high", "Organization name should survive migration."])
-    sheet.append(common + ["country", "LAND1", country_target, "lookup", "country-code", True, True, "Master Data", "high", "Country uses an explicit governed value map."])
-    sheet.append(common + ["grouping", "KTOKD", "BusinessPartnerGrouping", "lookup", "account-group-to-bp-grouping", True, True, "Master Data", "high", "Legacy account group maps explicitly to BP grouping."])
+    sheet.append(
+        common
+        + [
+            "legacy-id",
+            "KUNNR",
+            "BusinessPartner",
+            "expression",
+            "",
+            "resolve_via_explicit_identity_crosswalk",
+            True,
+            True,
+            "Master Data",
+            "critical",
+            "Business identity changes and must be resolved explicitly.",
+        ]
+    )
+    sheet.append(
+        common
+        + [
+            "name",
+            "NAME1",
+            "OrganizationName1",
+            "copy",
+            "",
+            "",
+            True,
+            True,
+            "Master Data",
+            "high",
+            "Organization name should survive migration.",
+        ]
+    )
+    sheet.append(
+        common
+        + [
+            "country",
+            "LAND1",
+            country_target,
+            "lookup",
+            "country-code",
+            "",
+            True,
+            True,
+            "Master Data",
+            "high",
+            "Country uses an explicit governed value map.",
+        ]
+    )
+    sheet.append(
+        common
+        + [
+            "grouping",
+            "KTOKD",
+            "BusinessPartnerGrouping",
+            "lookup",
+            "account-group-to-bp-grouping",
+            "",
+            True,
+            True,
+            "Master Data",
+            "high",
+            "Legacy account group maps explicitly to BP grouping.",
+        ]
+    )
 
     value_maps = workbook.create_sheet("ValueMaps")
     value_maps.append(["map", "source", "target"])
@@ -110,14 +171,14 @@ def test_preflight_generates_pinned_rac_handoff_with_explicit_keys(tmp_path: Pat
     assert reconciliation["source"]["key"] == "KUNNR"
     assert reconciliation["target"]["key"] == "LegacyCustomerID"
     assert reconciliation["generated_from"]["projection_mode"] == "linked_source"
-    artifact = reconciliation["generated_from"]["mapping_artifact"]
+    artifact = reconciliation["mapping_artifacts"]["mapping-source"]
     assert artifact["file"] == "mapping.yaml"
     assert len(artifact["sha256"]) == 64
     checks = {item["id"]: item for item in reconciliation["checks"]}
-    assert "field-name" in checks
-    assert "field-country" in checks
-    assert "field-grouping" in checks
-    assert "field-legacy-id" not in checks  # expression/crosswalk intent is not reduced to equality
+    assert "name" in checks
+    assert "country" in checks
+    assert "grouping" in checks
+    assert "legacy-id" not in checks  # expression/crosswalk intent is not reduced to equality
 
 
 def test_preflight_requires_complete_rac_configuration(tmp_path: Path) -> None:
