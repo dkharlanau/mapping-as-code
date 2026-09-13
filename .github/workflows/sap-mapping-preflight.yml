@@ -1,0 +1,56 @@
+name: sap-mapping-preflight
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  customer-to-bp-workbook:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e '.[dev]'
+
+      - name: Run SAP Customer to BP mapping preflight
+        run: >-
+          map-code-preflight
+          examples/sap-s4hana/customer-bp-mapping/customer-bp-mapping.xlsx
+          --policy policies/migration-pragmatic.yaml
+          --source-file examples/sap-s4hana/customer-bp-mapping/legacy-customers.csv
+          --target-file examples/sap-s4hana/customer-bp-mapping/s4-business-partners.csv
+          --source-key KUNNR
+          --target-key LegacyCustomerID
+          --output-dir build/sap-customer-bp-mapping
+
+      - name: Validate canonical mapping and handoff
+        run: |
+          map-code validate build/sap-customer-bp-mapping/mapping.yaml
+          test -s build/sap-customer-bp-mapping/validation-report.json
+          test -s build/sap-customer-bp-mapping/quality-score.json
+          test -s build/sap-customer-bp-mapping/preflight-summary.json
+          test -s build/sap-customer-bp-mapping/reconciliation.yaml
+
+      - name: Verify linked-source RAC boundary
+        run: >-
+          python -c "import json,yaml;
+          s=json.load(open('build/sap-customer-bp-mapping/preflight-summary.json'));
+          r=yaml.safe_load(open('build/sap-customer-bp-mapping/reconciliation.yaml'));
+          assert s['validation']['valid'] is True;
+          assert s['rac_handoff']['generated'] is True;
+          assert r['source']['key']=='KUNNR';
+          assert r['target']['key']=='LegacyCustomerID';
+          assert r['generated_from']['projection_mode']=='linked_source';
+          a=r['generated_from']['mapping_artifact'];
+          assert a['file']=='mapping.yaml' and len(a['sha256'])==64;
+          ids={c['id'] for c in r['checks']};
+          assert 'field-name' in ids and 'field-country' in ids and 'field-grouping' in ids;
+          assert 'field-legacy-id' not in ids;
+          print('SAP mapping preflight handoff verified')"
