@@ -4,6 +4,7 @@ import csv
 import re
 from pathlib import Path
 from typing import Any
+from zipfile import BadZipFile
 
 
 class ImportErrorDetail(ValueError):
@@ -50,6 +51,13 @@ def _single(rows: list[dict[str, Any]], column: str) -> str:
     return values.pop()
 
 
+def _optional_single(rows: list[dict[str, Any]], column: str) -> str | None:
+    values = {str(row[column]) for row in rows if row.get(column) is not None}
+    if len(values) > 1:
+        raise ImportErrorDetail(f"inconsistent workbook metadata for {column}: {sorted(values)}")
+    return values.pop() if values else None
+
+
 def _read_csv(path: Path) -> list[dict[str, Any]]:
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
         return _normalized_rows(list(csv.DictReader(handle)))
@@ -72,12 +80,16 @@ def _sheet_rows(sheet: Any) -> list[dict[str, Any]]:
 def _read_xlsx(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     try:
         from openpyxl import load_workbook
+        from openpyxl.utils.exceptions import InvalidFileException
     except ImportError as exc:
         raise ImportErrorDetail(
             "XLSX import requires the optional dependency: pip install 'mapping-as-code[excel]'"
         ) from exc
 
-    workbook = load_workbook(path, read_only=True, data_only=True)
+    try:
+        workbook = load_workbook(path, read_only=True, data_only=True)
+    except (BadZipFile, InvalidFileException) as exc:
+        raise ImportErrorDetail(f"invalid or corrupted Excel workbook: {path}") from exc
     mapping_sheet = workbook["Mappings"] if "Mappings" in workbook.sheetnames else workbook.active
     mappings = _sheet_rows(mapping_sheet)
     value_maps = _sheet_rows(workbook["ValueMaps"]) if "ValueMaps" in workbook.sheetnames else []
@@ -108,6 +120,7 @@ def import_rows(
         raise ImportErrorDetail("mapping workbook contains no data rows")
 
     mapping_id = _single(rows, "mapping_id")
+    title = _optional_single(rows, "title")
     source_system = _single(rows, "source_system")
     source_object = _single(rows, "source_object")
     target_system = _single(rows, "target_system")
@@ -178,22 +191,26 @@ def import_rows(
             raise ImportErrorDetail(f"value-map row {index}: map, source, and target are required")
         value_maps.setdefault(str(name), {})[source_value] = row["target"]
 
+    mapping: dict[str, Any] = {
+        "id": mapping_id,
+        "source": {
+            "system": source_system,
+            "object": source_object,
+            "required_fields": list(dict.fromkeys(required_sources)),
+        },
+        "target": {
+            "system": target_system,
+            "object": target_object,
+            "required_fields": list(dict.fromkeys(required_targets)),
+        },
+        "fields": fields,
+    }
+    if title is not None:
+        mapping["title"] = title
+
     document: dict[str, Any] = {
         "schema_version": "0.1",
-        "mapping": {
-            "id": mapping_id,
-            "source": {
-                "system": source_system,
-                "object": source_object,
-                "required_fields": list(dict.fromkeys(required_sources)),
-            },
-            "target": {
-                "system": target_system,
-                "object": target_object,
-                "required_fields": list(dict.fromkeys(required_targets)),
-            },
-            "fields": fields,
-        },
+        "mapping": mapping,
     }
     if value_maps:
         document["value_maps"] = value_maps
