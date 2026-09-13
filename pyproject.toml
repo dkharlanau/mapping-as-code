@@ -28,6 +28,7 @@ dev = ["pytest>=8", "build>=1.2", "openpyxl>=3.1", "jsonschema>=4.23"]
 
 [project.scripts]
 map-code = "mapping_as_code.cli:main"
+map-code-preflight = "mapping_as_code.preflight:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
