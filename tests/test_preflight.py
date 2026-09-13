@@ -17,6 +17,7 @@ def _write_workbook(path: Path, *, country_target: str = "Country") -> None:
     sheet.append(
         [
             "mapping_id",
+            "title",
             "source_system",
             "source_object",
             "target_system",
@@ -34,7 +35,14 @@ def _write_workbook(path: Path, *, country_target: str = "Country") -> None:
             "rationale",
         ]
     )
-    common = ["sap-customer-bp", "SAP-ECC", "Customer", "SAP-S4", "BusinessPartner"]
+    common = [
+        "sap-customer-bp",
+        "SAP Customer to Business Partner migration mapping",
+        "SAP-ECC",
+        "Customer",
+        "SAP-S4",
+        "BusinessPartner",
+    ]
     sheet.append(
         common
         + [
@@ -139,6 +147,7 @@ def test_preflight_emits_canonical_mapping_and_quality_evidence(tmp_path: Path) 
     assert summary["rac_handoff"]["requested"] is False
     mapping = yaml.safe_load((output / "mapping.yaml").read_text(encoding="utf-8"))
     assert mapping["mapping"]["id"] == "sap-customer-bp"
+    assert mapping["mapping"]["title"] == "SAP Customer to Business Partner migration mapping"
     assert mapping["value_maps"]["account-group-to-bp-grouping"]["Z001"] == "ZCUST"
 
 
@@ -199,3 +208,12 @@ def test_preflight_requires_complete_rac_configuration(tmp_path: Path) -> None:
     assert code == 2
     assert (output / "mapping.yaml").exists()
     assert not (output / "reconciliation.yaml").exists()
+
+
+def test_preflight_reports_corrupted_excel_without_traceback(tmp_path: Path) -> None:
+    workbook = tmp_path / "broken.xlsx"
+    workbook.write_bytes(b"not-an-xlsx")
+
+    code = preflight_main([str(workbook), "--output-dir", str(tmp_path / "preflight")])
+
+    assert code == 2
