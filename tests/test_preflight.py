@@ -141,6 +141,7 @@ def test_preflight_emits_canonical_mapping_and_quality_evidence(tmp_path: Path) 
     assert (output / "mapping.yaml").exists()
     assert (output / "validation-report.json").exists()
     assert (output / "quality-score.json").exists()
+    assert (output / "import-provenance.json").exists()
     assert (output / "preflight-summary.json").exists()
     summary = json.loads((output / "preflight-summary.json").read_text(encoding="utf-8"))
     assert summary["validation"]["valid"] is True
@@ -226,6 +227,7 @@ def test_preflight_force_removes_stale_success_artifacts_before_failed_import(tm
     output.mkdir()
     stale = [
         output / "mapping.yaml",
+        output / "import-provenance.json",
         output / "preflight-summary.json",
         output / "reconciliation.yaml",
     ]
@@ -243,3 +245,39 @@ def test_preflight_force_removes_stale_success_artifacts_before_failed_import(tm
 
     assert code == 2
     assert all(not path.exists() for path in stale)
+
+
+def test_preflight_semantic_review_includes_current_workbook_source_location(tmp_path: Path) -> None:
+    baseline_workbook = tmp_path / "customer-bp-v1.xlsx"
+    current_workbook = tmp_path / "customer-bp-v2.xlsx"
+    baseline_output = tmp_path / "baseline"
+    current_output = tmp_path / "current"
+    _write_workbook(baseline_workbook)
+    _write_workbook(current_workbook, country_target="CountryCode")
+
+    assert preflight_main([str(baseline_workbook), "--output-dir", str(baseline_output)]) == 0
+
+    code = preflight_main(
+        [
+            str(current_workbook),
+            "--baseline",
+            str(baseline_output / "mapping.yaml"),
+            "--baseline-provenance",
+            str(baseline_output / "import-provenance.json"),
+            "--output-dir",
+            str(current_output),
+        ]
+    )
+
+    assert code == 1
+    review = json.loads((current_output / "semantic-review.json").read_text(encoding="utf-8"))
+    country = next(item for item in review["functional_changes"] if item["id"] == "country")
+    assert country["before"]["location"]["row"] == 4
+    assert country["after"]["location"] == {
+        "file": str(current_workbook),
+        "sheet": "Mappings",
+        "row": 4,
+    }
+    markdown = (current_output / "semantic-review.md").read_text(encoding="utf-8")
+    assert "Source location:" in markdown
+    assert str(current_workbook) in markdown
