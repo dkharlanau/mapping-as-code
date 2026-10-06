@@ -57,6 +57,9 @@ def _safe_output_dir(path: str, *, force: bool) -> Path:
         joined = ", ".join(str(path) for path in existing)
         raise ValueError(f"preflight output already exists: {joined}; use --force to overwrite")
     output_dir.mkdir(parents=True, exist_ok=True)
+    if force:
+        for path in existing:
+            path.unlink()
     return output_dir
 
 

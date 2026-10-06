@@ -74,11 +74,19 @@ map-code validate customer-mapping.yaml
 
 ## Import diagnostics
 
-The importer fails deterministically when workbook metadata is ambiguous. For example, one file cannot silently contain two different values for `target_system` or `mapping_id`.
+The importer treats the workbook reader as a trust boundary. It rejects input before dictionary construction or normalization can silently discard information.
 
-It also rejects rows without a target field, non-constant rows without a source field, and constants without a value.
+For CSV and Excel inputs it rejects duplicate headers after whitespace normalization and internal blank headers. CSV rows must have the same number of cells as the header. Diagnostics retain the physical CSV row where a record starts, including records that contain multiline quoted values. Excel diagnostics retain the workbook path, sheet, row, and column when available.
 
-The importer performs normalization only. The generated contract should then pass through `map-code validate`, which applies semantic mapping rules such as lookup reference integrity, duplicate target detection, and required-target coverage.
+Value-map keys are unique within a named map. Conflicting definitions are errors that report both source locations. Exact duplicate definitions are also rejected instead of being silently collapsed.
+
+Excel formulas are never executed. When a mapping/value-map cell contains a formula, import uses only a cached value saved by the spreadsheet application. If no cached value exists, import fails and asks for the workbook to be recalculated and saved first. XLSM macros are not executed.
+
+The importer also fails deterministically when workbook metadata is ambiguous. For example, one file cannot silently contain two different values for `target_system` or `mapping_id`. It rejects rows without a target field, non-constant rows without a source field, and constants without a value.
+
+Text values remain text, including identifiers with leading zeros. Authors should therefore store identifiers that require leading zeros as text in the workbook instead of relying on display-only number formatting.
+
+The importer performs conservative normalization only. The generated contract should then pass through `map-code validate`, which applies semantic mapping rules such as lookup reference integrity, duplicate target detection, and required-target coverage.
 
 ## Why metadata is repeated per row
 
