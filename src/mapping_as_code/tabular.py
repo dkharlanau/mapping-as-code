@@ -487,6 +487,64 @@ def import_rows(
     return document
 
 
-def import_tabular(path: str | Path, value_maps_path: str | Path | None = None) -> dict[str, Any]:
+def _row_provenance(row: dict[str, Any]) -> dict[str, Any] | None:
+    if not isinstance(row, TabularRow):
+        return None
+    location: dict[str, Any] = {}
+    if row.source_path:
+        location["file"] = row.source_path
+    if row.sheet:
+        location["sheet"] = row.sheet
+    if row.row_number is not None:
+        location["row"] = row.row_number
+    return location or None
+
+
+def tabular_provenance(
+    document: dict[str, Any],
+    rows: list[dict[str, Any]],
+    value_map_rows: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    normalized_rows = _normalized_rows(rows)
+    mapping = document.get("mapping") if isinstance(document.get("mapping"), dict) else {}
+    fields = mapping.get("fields") if isinstance(mapping.get("fields"), list) else []
+    field_locations: dict[str, dict[str, Any]] = {}
+    for field, row in zip(fields, normalized_rows):
+        if not isinstance(field, dict) or field.get("id") is None:
+            continue
+        location = _row_provenance(row)
+        if location:
+            field_locations[str(field["id"])] = location
+
+    value_map_locations: list[dict[str, Any]] = []
+    for row in _normalized_rows(value_map_rows or []):
+        location = _row_provenance(row)
+        if location and row.get("map") is not None and row.get("source") is not None:
+            value_map_locations.append(
+                {
+                    "map": str(row["map"]),
+                    "source": str(row["source"]),
+                    "location": location,
+                }
+            )
+
+    return {
+        "provenance_version": 1,
+        "mapping_id": mapping.get("id"),
+        "fields": field_locations,
+        "value_maps": value_map_locations,
+    }
+
+
+def import_tabular_with_provenance(
+    path: str | Path,
+    value_maps_path: str | Path | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
     rows, value_maps = read_tabular(path, value_maps_path=value_maps_path)
-    return import_rows(rows, value_maps)
+    document = import_rows(rows, value_maps)
+    return document, tabular_provenance(document, rows, value_maps)
+
+
+def import_tabular(path: str | Path, value_maps_path: str | Path | None = None) -> dict[str, Any]:
+    document, _ = import_tabular_with_provenance(path, value_maps_path=value_maps_path)
+    return document
