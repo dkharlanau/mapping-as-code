@@ -47,6 +47,7 @@ breaking_changes:
   transform: error
   rules: warning
   business: warning
+  value_map: error
 ```
 
 Policies deliberately use a small vocabulary. A rule should be explainable to a consultant or architect without knowing the implementation.
@@ -104,11 +105,42 @@ The policy can independently classify:
 - target change;
 - transform change;
 - rule change;
-- business metadata change.
+- business metadata change;
+- value-map entry or map removal/change.
+
+Added value maps and added value-map entries are reported as information. Existing value-map entries use the configured `value_map` severity because changing a lookup result can change downstream behavior without changing the field rule itself.
 
 Allowed severities are `ignore`, `info`, `warning`, and `error`. Any `error` event blocks the gate.
 
 The default policy treats removal, target changes, and transform changes as breaking because they can change downstream behavior while retaining the same stable mapping identity.
+
+## Functional review
+
+`map-code review` adds a consultant-focused view on top of the raw change events.
+
+```bash
+map-code review old.yaml new.yaml \
+  --policy policies/enterprise-strict.yaml \
+  --format markdown \
+  -o review.md
+```
+
+For every affected field, the review shows the stable rule ID, source, target, transform, required-target status, owner, criticality, rationale, and the reason a decision is required. A change to a referenced value map also marks the lookup rule for review even when the field mapping itself did not change.
+
+Workbook source locations stay outside the canonical mapping so row movement does not change the semantic hash. Import can write a separate provenance sidecar:
+
+```bash
+map-code import next.xlsx \
+  --output next.yaml \
+  --provenance-output next-provenance.json
+
+map-code review old.yaml next.yaml \
+  --old-provenance old-provenance.json \
+  --new-provenance next-provenance.json \
+  --format markdown
+```
+
+The preflight command writes `import-provenance.json` automatically and uses it in the current revision review. Use `--baseline-provenance` when the retained baseline has a sidecar.
 
 ## Traceability
 
