@@ -321,6 +321,8 @@ def review_markdown(report: dict[str, Any], *, max_items: int = 20) -> str:
     current = report["current"]["validation"]
     events = report["changes"]["events"]
     diagnostics = current["diagnostics"]
+    functional = report.get("functional_changes", [])
+    value_map_diff = report["changes"].get("diff", {}).get("value_maps", {})
     regression_gate = report["quality_delta"]["gate"]
     severity_counts = Counter(str(item.get("severity", "info")) for item in events)
     kind_counts = Counter(str(item.get("kind", "change")) for item in events)
@@ -353,7 +355,30 @@ def review_markdown(report: dict[str, Any], *, max_items: int = 20) -> str:
                 "",
             ]
         )
-    lines.extend(["### Change events", ""])
+    lines.extend(["### Functional review", ""])
+    if functional:
+        visible = functional[:max_items]
+        for item in visible:
+            lines.append(_functional_markdown_item(item))
+        remaining = len(functional) - len(visible)
+        if remaining > 0:
+            lines.append(f"- ... **{remaining} more** field changes not shown in the compact summary.")
+    else:
+        lines.append("No field mapping changes.")
+
+    if isinstance(value_map_diff, dict) and value_map_diff.get("has_changes"):
+        lines.extend(["", "### Value-map review", ""])
+        for name in value_map_diff.get("removed", []):
+            lines.append(f"- REMOVED MAP: {name}")
+        for name in value_map_diff.get("added", []):
+            lines.append(f"- ADDED MAP: {name}")
+        for item in value_map_diff.get("changed", []):
+            lines.append(
+                f"- {item['map']} - {len(item.get('changed', []))} changed | "
+                f"{len(item.get('added', []))} added | {len(item.get('removed', []))} removed entries"
+            )
+
+    lines.extend(["", "### Change events", ""])
     if events:
         _append_limited(
             lines,
