@@ -76,6 +76,7 @@
 - [x] workbook provenance sidecars kept outside the semantic mapping hash
 - [x] value-map-aware semantic diff and policy classification
 - [x] consultant-focused functional review with old/new intent and decision context
+- [x] SAP Customer → BP baseline / malformed / broken / corrected review lifecycle with RAC handoff
 
 ## P0 — scale and enterprise ingestion
 
