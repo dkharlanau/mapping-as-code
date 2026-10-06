@@ -217,3 +217,29 @@ def test_preflight_reports_corrupted_excel_without_traceback(tmp_path: Path) -> 
     code = preflight_main([str(workbook), "--output-dir", str(tmp_path / "preflight")])
 
     assert code == 2
+
+
+def test_preflight_force_removes_stale_success_artifacts_before_failed_import(tmp_path: Path) -> None:
+    workbook = tmp_path / "broken.xlsx"
+    workbook.write_bytes(b"not-an-xlsx")
+    output = tmp_path / "preflight"
+    output.mkdir()
+    stale = [
+        output / "mapping.yaml",
+        output / "preflight-summary.json",
+        output / "reconciliation.yaml",
+    ]
+    for path in stale:
+        path.write_text("stale\n", encoding="utf-8")
+
+    code = preflight_main(
+        [
+            str(workbook),
+            "--output-dir",
+            str(output),
+            "--force",
+        ]
+    )
+
+    assert code == 2
+    assert all(not path.exists() for path in stale)
