@@ -320,6 +320,10 @@ def _read_xlsx(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
         formula_workbook = load_workbook(path, read_only=True, data_only=False)
         cached_workbook = load_workbook(path, read_only=True, data_only=True)
     except (BadZipFile, InvalidFileException) as exc:
+        if formula_workbook is not None:
+            formula_workbook.close()
+        if cached_workbook is not None:
+            cached_workbook.close()
         raise ImportErrorDetail(f"invalid or corrupted Excel workbook: {path}") from exc
 
     try:
