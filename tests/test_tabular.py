@@ -3,7 +3,12 @@ from pathlib import Path
 import pytest
 
 from mapping_as_code.core import validate_document
-from mapping_as_code.tabular import ImportErrorDetail, import_rows, import_tabular
+from mapping_as_code.tabular import (
+    ImportErrorDetail,
+    import_rows,
+    import_tabular,
+    import_tabular_with_provenance,
+)
 
 
 def rows():
@@ -328,3 +333,50 @@ def test_xlsx_rejects_internal_blank_header(tmp_path: Path):
     message = str(excinfo.value)
     assert "blank header is not allowed" in message
     assert f"{source} / sheet Mappings / row 1 / column 6" in message
+
+
+def test_xlsx_import_provenance_tracks_field_and_value_map_source_locations(tmp_path: Path):
+    openpyxl = pytest.importorskip("openpyxl")
+    source = tmp_path / "mapping.xlsx"
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = "Mappings"
+    sheet.append(
+        [
+            "mapping_id",
+            "source_system",
+            "source_object",
+            "target_system",
+            "target_object",
+            "id",
+            "source_field",
+            "target_field",
+            "transform",
+            "reference",
+        ]
+    )
+    sheet.append(["customer", "legacy", "customer", "s4", "bp", "country", "country", "Country", "lookup", "countries"])
+    vm = workbook.create_sheet("ValueMaps")
+    vm.append(["map", "source", "target"])
+    vm.append(["countries", "DE", "DE"])
+    workbook.save(source)
+
+    document, provenance = import_tabular_with_provenance(source)
+
+    assert document["mapping"]["fields"][0]["id"] == "country"
+    assert provenance["fields"]["country"] == {
+        "file": str(source),
+        "sheet": "Mappings",
+        "row": 2,
+    }
+    assert provenance["value_maps"] == [
+        {
+            "map": "countries",
+            "source": "DE",
+            "location": {
+                "file": str(source),
+                "sheet": "ValueMaps",
+                "row": 2,
+            },
+        }
+    ]

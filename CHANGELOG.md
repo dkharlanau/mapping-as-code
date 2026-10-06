@@ -2,6 +2,14 @@
 
 All notable public changes are recorded here. Mapping as Code uses semantic package versions and keeps mapping contract/schema evolution explicit in release notes.
 
+## Unreleased
+
+### Workbook trust and review
+- Reject duplicate/blank workbook headers, ragged CSV rows, conflicting value-map keys, and Excel formulas without cached values before information can be lost.
+- Keep workbook file/sheet/row provenance in a sidecar instead of changing the canonical mapping hash.
+- Include value-map changes in semantic diff and policy classification.
+- Add a functional review view with before/after source, target, transform, required status, ownership, criticality, rationale, and review reasons.
+
 ## 0.5.0 — release candidate
 
 This release establishes Mapping as Code as a governed mapping-contract toolkit rather than a YAML-only prototype.

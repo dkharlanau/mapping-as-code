@@ -28,6 +28,7 @@ DEFAULT_POLICY: dict[str, Any] = {
         "transform": "error",
         "rules": "warning",
         "business": "warning",
+        "value_map": "warning",
     },
 }
 
@@ -219,6 +220,72 @@ def breaking_change_report(
                     "after": values.get("after"),
                 }
             )
+
+    value_map_severity = _severity(normalized, "value_map")
+    for map_name in diff["value_maps"]["removed"]:
+        if value_map_severity != "ignore":
+            events.append(
+                {
+                    "id": f"value-map:{map_name}",
+                    "kind": "value_map",
+                    "change": "map_removed",
+                    "map": map_name,
+                    "severity": value_map_severity,
+                }
+            )
+    for map_name in diff["value_maps"]["added"]:
+        events.append(
+            {
+                "id": f"value-map:{map_name}",
+                "kind": "value_map",
+                "change": "map_added",
+                "map": map_name,
+                "severity": "info",
+            }
+        )
+    for value_map in diff["value_maps"]["changed"]:
+        map_name = value_map["map"]
+        for item in value_map["removed"]:
+            if value_map_severity != "ignore":
+                events.append(
+                    {
+                        "id": f"value-map:{map_name}:{item['source']!r}",
+                        "kind": "value_map",
+                        "change": "entry_removed",
+                        "map": map_name,
+                        "source_value": item["source"],
+                        "severity": value_map_severity,
+                        "before": item["target"],
+                        "after": None,
+                    }
+                )
+        for item in value_map["added"]:
+            events.append(
+                {
+                    "id": f"value-map:{map_name}:{item['source']!r}",
+                    "kind": "value_map",
+                    "change": "entry_added",
+                    "map": map_name,
+                    "source_value": item["source"],
+                    "severity": "info",
+                    "before": None,
+                    "after": item["target"],
+                }
+            )
+        for item in value_map["changed"]:
+            if value_map_severity != "ignore":
+                events.append(
+                    {
+                        "id": f"value-map:{map_name}:{item['source']!r}",
+                        "kind": "value_map",
+                        "change": "entry_changed",
+                        "map": map_name,
+                        "source_value": item["source"],
+                        "severity": value_map_severity,
+                        "before": item["before"],
+                        "after": item["after"],
+                    }
+                )
 
     blocked = any(event["severity"] == "error" for event in events)
     return {

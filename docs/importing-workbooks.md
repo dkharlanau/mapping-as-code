@@ -42,6 +42,17 @@ map-code import examples/customer-master.csv \
 map-code validate mapping.yaml
 ```
 
+When later review must point back to workbook rows, write a separate provenance sidecar:
+
+```bash
+map-code import examples/customer-master.csv \
+  --value-maps examples/customer-value-maps.csv \
+  --output mapping.yaml \
+  --provenance-output import-provenance.json
+```
+
+The sidecar records file, sheet, and physical row locations when available. It is not part of the canonical mapping contract, so moving a workbook row does not change the mapping semantic hash.
+
 A separate CSV value-map file uses three columns:
 
 ```text

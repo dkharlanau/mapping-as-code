@@ -76,3 +76,39 @@ def test_canonical_hash_is_order_independent_for_object_keys():
     left = {"b": 2, "a": {"y": 1, "x": 0}}
     right = {"a": {"x": 0, "y": 1}, "b": 2}
     assert canonical_hash(left) == canonical_hash(right)
+
+
+def test_value_map_change_is_visible_and_warning_by_default():
+    old = load_document("examples/customer-master.yaml")
+    new = deepcopy(old)
+    new["value_maps"]["iso-country"]["DE"] = "GER"
+
+    report = breaking_change_report(old, new)
+
+    event = next(item for item in report["events"] if item["kind"] == "value_map")
+    assert event["change"] == "entry_changed"
+    assert event["map"] == "iso-country"
+    assert event["source_value"] == "DE"
+    assert event["before"] == "DE"
+    assert event["after"] == "GER"
+    assert event["severity"] == "warning"
+    assert report["passed"] is True
+
+
+def test_policy_can_gate_value_map_changes():
+    old = load_document("examples/customer-master.yaml")
+    new = deepcopy(old)
+    new["value_maps"]["iso-country"]["DE"] = "GER"
+
+    report = breaking_change_report(
+        old,
+        new,
+        {
+            "version": 1,
+            "name": "strict-value-maps",
+            "breaking_changes": {"value_map": "error"},
+        },
+    )
+
+    assert report["breaking"] is True
+    assert report["passed"] is False

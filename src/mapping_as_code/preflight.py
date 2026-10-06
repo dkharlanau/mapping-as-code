@@ -12,10 +12,10 @@ import yaml
 from .adapters import to_reconciliation
 from .artifacts import source_sha256
 from .core import mapping_summary
-from .governance import quality_scorecard, validation_report
+from .governance import canonical_hash, quality_scorecard, validation_report
 from .io import load_document
 from .review import review_markdown, review_report
-from .tabular import import_tabular
+from .tabular import import_tabular_with_provenance
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -47,6 +47,7 @@ def _safe_output_dir(path: str, *, force: bool) -> Path:
         "mapping.yaml",
         "validation-report.json",
         "quality-score.json",
+        "import-provenance.json",
         "preflight-summary.json",
         "semantic-review.json",
         "semantic-review.md",
@@ -68,12 +69,19 @@ def _relative_runtime_path(path: str, output_dir: Path) -> str:
 
 
 def run_preflight(args: argparse.Namespace) -> int:
+    if args.baseline_provenance and not args.baseline:
+        raise ValueError("--baseline-provenance requires --baseline")
     output_dir = _safe_output_dir(args.output_dir, force=args.force)
-    document = import_tabular(args.workbook, value_maps_path=args.value_maps)
+    document, provenance = import_tabular_with_provenance(
+        args.workbook,
+        value_maps_path=args.value_maps,
+    )
+    provenance["document_sha256"] = canonical_hash(document)
     policy = load_document(args.policy) if args.policy else None
 
     mapping_path = output_dir / "mapping.yaml"
     _write_yaml(mapping_path, document)
+    _write_json(output_dir / "import-provenance.json", provenance)
 
     validation = validation_report(document, policy)
     quality = quality_scorecard(document)
@@ -82,7 +90,14 @@ def run_preflight(args: argparse.Namespace) -> int:
 
     review = None
     if args.baseline:
-        review = review_report(load_document(args.baseline), document, policy)
+        baseline_provenance = load_document(args.baseline_provenance) if args.baseline_provenance else None
+        review = review_report(
+            load_document(args.baseline),
+            document,
+            policy,
+            old_provenance=baseline_provenance,
+            new_provenance=provenance,
+        )
         _write_json(output_dir / "semantic-review.json", review)
         (output_dir / "semantic-review.md").write_text(
             review_markdown(review, max_items=args.max_review_items),
@@ -129,6 +144,7 @@ def run_preflight(args: argparse.Namespace) -> int:
             "mapping": str(mapping_path),
             "validation_report": str(output_dir / "validation-report.json"),
             "quality_score": str(output_dir / "quality-score.json"),
+            "import_provenance": str(output_dir / "import-provenance.json"),
             "semantic_review": str(output_dir / "semantic-review.json") if review is not None else None,
             "reconciliation": str(output_dir / "reconciliation.yaml") if rac is not None else None,
         },
@@ -155,6 +171,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--value-maps", help="Optional CSV value-map file when value maps are not embedded in XLSX.")
     parser.add_argument("--policy", help="Optional Mapping as Code governance policy.")
     parser.add_argument("--baseline", help="Optional canonical Mapping as Code YAML/JSON baseline for semantic review.")
+    parser.add_argument(
+        "--baseline-provenance",
+        help="Optional import-provenance.json sidecar for source locations in baseline review.",
+    )
     parser.add_argument("--output-dir", default="build/mapping-preflight", help="Directory for canonical and evidence artifacts.")
     parser.add_argument("--force", action="store_true", help="Overwrite existing preflight artifacts in the output directory.")
     parser.add_argument("--max-review-items", type=int, default=20, help="Maximum semantic-review items rendered to Markdown.")

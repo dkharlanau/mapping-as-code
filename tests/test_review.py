@@ -2,6 +2,7 @@ from copy import deepcopy
 
 import pytest
 
+from mapping_as_code.governance import canonical_hash
 from mapping_as_code.io import load_document
 from mapping_as_code.review import review_markdown, review_report
 
@@ -63,3 +64,82 @@ def test_review_markdown_rejects_zero_item_limit():
     report = review_report(old, old)
     with pytest.raises(ValueError, match="at least 1"):
         review_markdown(report, max_items=0)
+
+
+def test_functional_review_exposes_before_after_mapping_intent():
+    old = load_document("examples/customer-master.yaml")
+    new = load_document("examples/customer-master-v2.yaml")
+
+    report = review_report(old, new, load_document("policies/migration-pragmatic.yaml"))
+
+    item = next(change for change in report["functional_changes"] if change["id"] == "customer-name")
+    assert item["before"]["source"]["field"] == "name"
+    assert item["after"]["target"]["field"] == "OrganizationBPName1"
+    assert item["before"]["transform"] == {"type": "copy"}
+    assert item["after"]["transform"]["type"] == "expression"
+    assert item["before"]["required_target"] is True
+    assert item["after"]["required_target"] is True
+    assert item["decision"]["status"] == "review_required"
+    assert "transform" in item["decision"]["reasons"]
+
+
+def test_value_map_only_change_marks_referencing_mapping_for_review():
+    old = load_document("examples/customer-master.yaml")
+    new = deepcopy(old)
+    new["value_maps"]["iso-country"]["DE"] = "GER"
+
+    report = review_report(old, new)
+
+    item = next(change for change in report["functional_changes"] if change["id"] == "customer-country")
+    assert item["change_types"] == ["value_map"]
+    assert item["severity"] == "warning"
+    assert item["value_map_impacts"][0]["map"] == "iso-country"
+    assert "referenced_value_map_changed" in item["decision"]["reasons"]
+
+
+def test_review_can_attach_external_source_provenance_without_changing_mapping():
+    old = load_document("examples/customer-master.yaml")
+    new = load_document("examples/customer-master-v2.yaml")
+    provenance = {
+        "document_sha256": canonical_hash(new),
+        "fields": {
+            "customer-name": {
+                "file": "customer-bp-v2.xlsx",
+                "sheet": "Mappings",
+                "row": 3,
+            }
+        }
+    }
+
+    report = review_report(old, new, new_provenance=provenance)
+
+    item = next(change for change in report["functional_changes"] if change["id"] == "customer-name")
+    assert item["after"]["location"] == provenance["fields"]["customer-name"]
+    text = review_markdown(report)
+    assert "Source location:" in text
+    assert "customer-bp-v2.xlsx" in text
+
+
+def test_review_markdown_contains_functional_intent_details():
+    old = load_document("examples/customer-master.yaml")
+    new = load_document("examples/customer-master-v2.yaml")
+    report = review_report(old, new, load_document("policies/migration-pragmatic.yaml"))
+
+    text = review_markdown(report)
+
+    assert "### Functional review" in text
+    assert "customer-name" in text
+    assert "Transform:" in text
+    assert "Decision: review required" in text
+
+
+def test_review_rejects_provenance_from_a_different_mapping_revision():
+    old = load_document("examples/customer-master.yaml")
+    new = load_document("examples/customer-master-v2.yaml")
+    wrong_provenance = {
+        "document_sha256": canonical_hash(old),
+        "fields": {},
+    }
+
+    with pytest.raises(ValueError, match="current provenance document_sha256 does not match"):
+        review_report(old, new, new_provenance=wrong_provenance)

@@ -1,16 +1,210 @@
 from __future__ import annotations
 
+import json
 from collections import Counter
 from typing import Any
 
-from .governance import breaking_change_report, quality_scorecard, validation_report
+from .governance import breaking_change_report, canonical_hash, quality_scorecard, validation_report
+
+
+_SEVERITY_RANK = {"info": 0, "warning": 1, "error": 2}
+
+
+def _field_index(document: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    mapping = document.get("mapping") if isinstance(document.get("mapping"), dict) else {}
+    fields = mapping.get("fields") if isinstance(mapping.get("fields"), list) else []
+    result: dict[str, dict[str, Any]] = {}
+    for index, item in enumerate(fields):
+        if not isinstance(item, dict):
+            continue
+        field_id = item.get("id")
+        if not str(field_id or "").strip():
+            target = item.get("target") if isinstance(item.get("target"), dict) else {}
+            field_id = f"@target:{target.get('field', index)}"
+        result[str(field_id)] = item
+    return result
+
+
+def _required_target(document: dict[str, Any], field: dict[str, Any] | None) -> bool:
+    if not isinstance(field, dict):
+        return False
+    mapping = document.get("mapping") if isinstance(document.get("mapping"), dict) else {}
+    target = mapping.get("target") if isinstance(mapping.get("target"), dict) else {}
+    required = target.get("required_fields") if isinstance(target.get("required_fields"), list) else []
+    field_target = field.get("target") if isinstance(field.get("target"), dict) else {}
+    rules = field.get("rules") if isinstance(field.get("rules"), dict) else {}
+    return bool(rules.get("required") is True or field_target.get("field") in required)
+
+
+def _location(provenance: dict[str, Any] | None, field_id: str) -> Any:
+    if not isinstance(provenance, dict):
+        return None
+    fields = provenance.get("fields") if isinstance(provenance.get("fields"), dict) else {}
+    return fields.get(field_id)
+
+
+def _field_snapshot(
+    document: dict[str, Any],
+    field: dict[str, Any] | None,
+    *,
+    field_id: str,
+    provenance: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not isinstance(field, dict):
+        return None
+    business = field.get("business") if isinstance(field.get("business"), dict) else {}
+    return {
+        "source": field.get("source"),
+        "target": field.get("target"),
+        "transform": field.get("transform"),
+        "rules": field.get("rules"),
+        "business": field.get("business"),
+        "required_target": _required_target(document, field),
+        "owner": business.get("owner"),
+        "criticality": business.get("criticality"),
+        "rationale": business.get("rationale"),
+        "location": _location(provenance, field_id),
+    }
+
+
+def _value_map_changes_by_name(diff: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    value_maps = diff.get("value_maps") if isinstance(diff.get("value_maps"), dict) else {}
+    result: dict[str, dict[str, Any]] = {}
+    for name in value_maps.get("added", []):
+        result[str(name)] = {"map": str(name), "change": "map_added"}
+    for name in value_maps.get("removed", []):
+        result[str(name)] = {"map": str(name), "change": "map_removed"}
+    for item in value_maps.get("changed", []):
+        if isinstance(item, dict) and item.get("map") is not None:
+            result[str(item["map"])] = item
+    return result
+
+
+def _referenced_value_maps(snapshot: dict[str, Any] | None) -> set[str]:
+    if not isinstance(snapshot, dict):
+        return set()
+    transform = snapshot.get("transform") if isinstance(snapshot.get("transform"), dict) else {}
+    reference = transform.get("reference")
+    return {str(reference)} if reference is not None else set()
+
+
+def _highest_severity(events: list[dict[str, Any]]) -> str:
+    severities = [str(item.get("severity", "info")) for item in events]
+    return max(severities or ["info"], key=lambda value: _SEVERITY_RANK.get(value, 0))
+
+
+def _functional_changes(
+    old: dict[str, Any],
+    new: dict[str, Any],
+    changes: dict[str, Any],
+    *,
+    old_provenance: dict[str, Any] | None = None,
+    new_provenance: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    diff = changes["diff"]
+    old_index = _field_index(old)
+    new_index = _field_index(new)
+    field_ids = set(diff.get("added", [])) | set(diff.get("removed", []))
+    field_ids.update(
+        str(item["id"])
+        for item in diff.get("changed", [])
+        if isinstance(item, dict) and item.get("id") is not None
+    )
+    events_by_id: dict[str, list[dict[str, Any]]] = {}
+    for event in changes.get("events", []):
+        if event.get("kind") == "value_map":
+            continue
+        events_by_id.setdefault(str(event.get("id")), []).append(event)
+
+    changed_value_maps = _value_map_changes_by_name(diff)
+    changed_value_map_names = set(changed_value_maps)
+    for field_id in sorted(set(old_index) | set(new_index)):
+        before_field = old_index.get(field_id)
+        after_field = new_index.get(field_id)
+        before_snapshot = _field_snapshot(
+            old, before_field, field_id=field_id, provenance=old_provenance
+        )
+        after_snapshot = _field_snapshot(
+            new, after_field, field_id=field_id, provenance=new_provenance
+        )
+        references = _referenced_value_maps(before_snapshot) | _referenced_value_maps(after_snapshot)
+        if references & changed_value_map_names:
+            field_ids.add(field_id)
+
+    value_map_events_by_name: dict[str, list[dict[str, Any]]] = {}
+    for event in changes.get("events", []):
+        if event.get("kind") == "value_map" and event.get("map") is not None:
+            value_map_events_by_name.setdefault(str(event["map"]), []).append(event)
+
+    result: list[dict[str, Any]] = []
+    for field_id in sorted(field_ids):
+        before = _field_snapshot(
+            old, old_index.get(field_id), field_id=field_id, provenance=old_provenance
+        )
+        after = _field_snapshot(
+            new, new_index.get(field_id), field_id=field_id, provenance=new_provenance
+        )
+        events = events_by_id.get(field_id, [])
+        change_types = sorted({str(item.get("kind", "change")) for item in events})
+        if not change_types:
+            if field_id in diff.get("added", []):
+                change_types = ["added"]
+            elif field_id in diff.get("removed", []):
+                change_types = ["removed"]
+
+        references = _referenced_value_maps(before) | _referenced_value_maps(after)
+        impacted_map_names = [name for name in sorted(references) if name in changed_value_maps]
+        value_map_impacts = [changed_value_maps[name] for name in impacted_map_names]
+        value_map_events = [
+            event
+            for name in impacted_map_names
+            for event in value_map_events_by_name.get(name, [])
+        ]
+        if value_map_impacts and "value_map" not in change_types:
+            change_types.append("value_map")
+        reasons = list(change_types)
+        if value_map_impacts:
+            reasons.append("referenced_value_map_changed")
+        result.append(
+            {
+                "id": field_id,
+                "severity": _highest_severity([*events, *value_map_events]),
+                "change_types": change_types,
+                "before": before,
+                "after": after,
+                "value_map_impacts": value_map_impacts,
+                "decision": {"status": "review_required", "reasons": reasons},
+            }
+        )
+    return result
+
+
+def _verify_provenance(
+    document: dict[str, Any],
+    provenance: dict[str, Any] | None,
+    *,
+    label: str,
+) -> None:
+    if provenance is None:
+        return
+    expected = provenance.get("document_sha256") if isinstance(provenance, dict) else None
+    actual = canonical_hash(document)
+    if expected != actual:
+        raise ValueError(
+            f"{label} provenance document_sha256 does not match the canonical mapping"
+        )
 
 
 def review_report(
     old: dict[str, Any],
     new: dict[str, Any],
     policy: dict[str, Any] | None = None,
+    *,
+    old_provenance: dict[str, Any] | None = None,
+    new_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    _verify_provenance(old, old_provenance, label="baseline")
+    _verify_provenance(new, new_provenance, label="current")
     baseline_quality = quality_scorecard(old)
     current_validation = validation_report(new, policy)
     changes = breaking_change_report(old, new, policy)
@@ -46,6 +240,17 @@ def review_report(
             },
         },
         "changes": changes,
+        "functional_changes": _functional_changes(
+            old,
+            new,
+            changes,
+            old_provenance=old_provenance,
+            new_provenance=new_provenance,
+        ),
+        "provenance": {
+            "baseline_available": old_provenance is not None,
+            "current_available": new_provenance is not None,
+        },
         "passed": passed,
     }
 
@@ -59,6 +264,86 @@ def _append_limited(lines: list[str], items: list[dict[str, Any]], *, limit: int
         lines.append(f"- … **{remaining} more** not shown in the compact summary.")
 
 
+def _compact(value: Any) -> str:
+    if value is None:
+        return "-"
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return str(value)
+
+
+def _field_name(snapshot: dict[str, Any] | None, section: str) -> Any:
+    if not isinstance(snapshot, dict):
+        return None
+    endpoint = snapshot.get(section) if isinstance(snapshot.get(section), dict) else {}
+    return endpoint.get("field")
+
+
+def _metadata_value(snapshot: dict[str, Any] | None, name: str) -> Any:
+    return snapshot.get(name) if isinstance(snapshot, dict) else None
+
+
+def _transition(before: Any, after: Any) -> str:
+    if before == after:
+        return _compact(after)
+    return f"{_compact(before)} -> {_compact(after)}"
+
+
+def _location_text(item: dict[str, Any]) -> str | None:
+    after = item.get("after") if isinstance(item.get("after"), dict) else None
+    before = item.get("before") if isinstance(item.get("before"), dict) else None
+    location = _metadata_value(after, "location") or _metadata_value(before, "location")
+    if not isinstance(location, dict):
+        return _compact(location) if location is not None else None
+    parts: list[str] = []
+    if location.get("file"):
+        parts.append(str(location["file"]))
+    if location.get("sheet"):
+        parts.append(f"sheet {location['sheet']}")
+    if location.get("row") is not None:
+        parts.append(f"row {location['row']}")
+    return " / ".join(parts) if parts else None
+
+
+def _functional_markdown_item(item: dict[str, Any]) -> str:
+    before = item.get("before") if isinstance(item.get("before"), dict) else None
+    after = item.get("after") if isinstance(item.get("after"), dict) else None
+    change_types = ", ".join(item.get("change_types") or ["change"])
+    lines = [f"#### {item['id']} - {item['severity'].upper()} - {change_types}"]
+    lines.append("  - Source: " + _transition(_field_name(before, "source"), _field_name(after, "source")))
+    lines.append("  - Target: " + _transition(_field_name(before, "target"), _field_name(after, "target")))
+    lines.append(
+        "  - Transform: "
+        + _transition(_metadata_value(before, "transform"), _metadata_value(after, "transform"))
+    )
+    lines.append(
+        "  - Required target: "
+        + _transition(
+            _metadata_value(before, "required_target"),
+            _metadata_value(after, "required_target"),
+        )
+    )
+    lines.append("  - Owner: " + _transition(_metadata_value(before, "owner"), _metadata_value(after, "owner")))
+    lines.append(
+        "  - Criticality: "
+        + _transition(_metadata_value(before, "criticality"), _metadata_value(after, "criticality"))
+    )
+    lines.append(
+        "  - Rationale: "
+        + _transition(_metadata_value(before, "rationale"), _metadata_value(after, "rationale"))
+    )
+    location = _location_text(item)
+    if location:
+        lines.append(f"  - Source location: {location}")
+    impacts = item.get("value_map_impacts") if isinstance(item.get("value_map_impacts"), list) else []
+    if impacts:
+        names = ", ".join(str(impact["map"]) for impact in impacts)
+        lines.append(f"  - Referenced value-map change: {names}")
+    reasons = ", ".join(item.get("decision", {}).get("reasons", []))
+    lines.append(f"  - Decision: review required ({reasons})")
+    return "\n".join(lines)
+
+
 def review_markdown(report: dict[str, Any], *, max_items: int = 20) -> str:
     if max_items < 1:
         raise ValueError("max_items must be at least 1")
@@ -67,6 +352,8 @@ def review_markdown(report: dict[str, Any], *, max_items: int = 20) -> str:
     current = report["current"]["validation"]
     events = report["changes"]["events"]
     diagnostics = current["diagnostics"]
+    functional = report.get("functional_changes", [])
+    value_map_diff = report["changes"].get("diff", {}).get("value_maps", {})
     regression_gate = report["quality_delta"]["gate"]
     severity_counts = Counter(str(item.get("severity", "info")) for item in events)
     kind_counts = Counter(str(item.get("kind", "change")) for item in events)
@@ -99,7 +386,30 @@ def review_markdown(report: dict[str, Any], *, max_items: int = 20) -> str:
                 "",
             ]
         )
-    lines.extend(["### Change events", ""])
+    lines.extend(["### Functional review", ""])
+    if functional:
+        visible = functional[:max_items]
+        for item in visible:
+            lines.append(_functional_markdown_item(item))
+        remaining = len(functional) - len(visible)
+        if remaining > 0:
+            lines.append(f"- ... **{remaining} more** field changes not shown in the compact summary.")
+    else:
+        lines.append("No field mapping changes.")
+
+    if isinstance(value_map_diff, dict) and value_map_diff.get("has_changes"):
+        lines.extend(["", "### Value-map review", ""])
+        for name in value_map_diff.get("removed", []):
+            lines.append(f"- REMOVED MAP: {name}")
+        for name in value_map_diff.get("added", []):
+            lines.append(f"- ADDED MAP: {name}")
+        for item in value_map_diff.get("changed", []):
+            lines.append(
+                f"- {item['map']} - {len(item.get('changed', []))} changed | "
+                f"{len(item.get('added', []))} added | {len(item.get('removed', []))} removed entries"
+            )
+
+    lines.extend(["", "### Change events", ""])
     if events:
         _append_limited(
             lines,

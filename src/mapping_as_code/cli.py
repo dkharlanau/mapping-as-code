@@ -21,14 +21,14 @@ from .change_projection import to_enterprise_change_transition
 from .composition import compose_manifest
 from .core import diff_documents, lineage_graph, lineage_mermaid, mapping_summary, validate_document
 from .ecosystem import ecosystem_bundle
-from .governance import breaking_change_report, quality_scorecard, validation_report
+from .governance import breaking_change_report, canonical_hash, quality_scorecard, validation_report
 from .graph_exports import lineage_cypher, lineage_graphml
 from .interface_binding import bind_interface_contract
 from .io import load_document
 from .performance import benchmark_mapping
 from .review import review_markdown, review_report
 from .sarif import sarif_report
-from .tabular import import_tabular
+from .tabular import import_tabular_with_provenance
 
 
 def _dump(value: Any) -> None:
@@ -128,8 +128,15 @@ def _lineage(args: argparse.Namespace) -> int:
 
 
 def _import(args: argparse.Namespace) -> int:
-    document = import_tabular(args.file, value_maps_path=args.value_maps)
+    document, provenance = import_tabular_with_provenance(args.file, value_maps_path=args.value_maps)
     _write(_serialize(document, args.format), args.output)
+    if args.provenance_output:
+        provenance["document_sha256"] = canonical_hash(document)
+        Path(args.provenance_output).write_text(
+            json.dumps(provenance, indent=2, sort_keys=False, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        print(args.provenance_output)
     return 0
 
 
@@ -193,6 +200,8 @@ def _review(args: argparse.Namespace) -> int:
         load_document(args.old),
         load_document(args.new),
         _load_policy(args.policy),
+        old_provenance=load_document(args.old_provenance) if args.old_provenance else None,
+        new_provenance=load_document(args.new_provenance) if args.new_provenance else None,
     )
     if args.format == "markdown":
         _write(review_markdown(result, max_items=args.max_items), args.output)
@@ -365,6 +374,7 @@ def build_parser() -> argparse.ArgumentParser:
     importer.add_argument("--value-maps", help="Optional CSV with map,source,target columns")
     importer.add_argument("--format", choices=("yaml", "json"), default="yaml")
     importer.add_argument("--output", "-o")
+    importer.add_argument("--provenance-output", help="Optional JSON sidecar with workbook source locations")
     importer.set_defaults(func=_import)
 
     compose = sub.add_parser("compose", help="Compose one base mapping with sandboxed reusable fragments")
@@ -411,6 +421,8 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("old")
     review.add_argument("new")
     review.add_argument("--policy")
+    review.add_argument("--old-provenance", help="Optional baseline import-provenance.json sidecar")
+    review.add_argument("--new-provenance", help="Optional current import-provenance.json sidecar")
     review.add_argument("--format", choices=("yaml", "json", "markdown"), default="json")
     review.add_argument("--max-items", type=int, default=20, help="Maximum events and diagnostics shown in Markdown summaries")
     review.add_argument("--output", "-o")
