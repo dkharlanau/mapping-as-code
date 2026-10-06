@@ -68,6 +68,93 @@ def test_csv_import(tmp_path: Path):
     assert document["mapping"]["fields"][0]["id"] == "id"
 
 
+def test_csv_rejects_duplicate_headers_before_values_collapse(tmp_path: Path):
+    source = tmp_path / "mapping.csv"
+    source.write_text(
+        "mapping_id,source_system,source_object,target_system,target_object,source_field,target_field,target_field\n"
+        "customer,legacy,customer,s4,bp,customer_id,BusinessPartner,OtherTarget\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ImportErrorDetail) as excinfo:
+        import_tabular(source)
+
+    message = str(excinfo.value)
+    assert "duplicate header 'target_field' after normalization" in message
+    assert f"{source} / row 1 / column 8" in message
+    assert f"{source} / row 1 / column 7" in message
+
+
+def test_csv_rejects_ragged_rows_at_physical_row(tmp_path: Path):
+    source = tmp_path / "mapping.csv"
+    source.write_text(
+        "mapping_id,source_system,source_object,target_system,target_object,source_field,target_field\n"
+        "customer,legacy,customer,s4,bp,customer_id\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ImportErrorDetail, match=r"row 2: expected 7 columns but found 6"):
+        import_tabular(source)
+
+
+def test_csv_multiline_record_preserves_physical_start_row_for_diagnostics(tmp_path: Path):
+    source = tmp_path / "mapping.csv"
+    source.write_text(
+        "mapping_id,source_system,source_object,target_system,target_object,source_field,target_field,rationale\n"
+        'customer,legacy,customer,s4,bp,customer_id,BusinessPartner,"line one\nline two"\n'
+        "customer,legacy,customer,s4,bp,country,,missing target\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ImportErrorDetail) as excinfo:
+        import_tabular(source)
+
+    assert f"{source} / row 4: target_field is required" in str(excinfo.value)
+
+
+def test_conflicting_value_map_rows_are_rejected_with_both_locations(tmp_path: Path):
+    source = tmp_path / "mapping.csv"
+    value_maps = tmp_path / "value-maps.csv"
+    source.write_text(
+        "mapping_id,source_system,source_object,target_system,target_object,source_field,target_field,transform,reference\n"
+        "customer,legacy,customer,s4,bp,country,Country,lookup,countries\n",
+        encoding="utf-8",
+    )
+    value_maps.write_text(
+        "map,source,target\n"
+        "countries,DE,DE\n"
+        "countries,DE,GER\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ImportErrorDetail) as excinfo:
+        import_tabular(source, value_maps)
+
+    message = str(excinfo.value)
+    assert "conflicting value-map entry 'countries' / 'DE'" in message
+    assert f"{value_maps} / row 2" in message
+    assert f"{value_maps} / row 3" in message
+
+
+def test_exact_duplicate_value_map_rows_are_explicitly_rejected(tmp_path: Path):
+    source = tmp_path / "mapping.csv"
+    value_maps = tmp_path / "value-maps.csv"
+    source.write_text(
+        "mapping_id,source_system,source_object,target_system,target_object,source_field,target_field,transform,reference\n"
+        "customer,legacy,customer,s4,bp,country,Country,lookup,countries\n",
+        encoding="utf-8",
+    )
+    value_maps.write_text(
+        "map,source,target\n"
+        "countries,DE,DE\n"
+        "countries,DE,DE\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ImportErrorDetail, match="duplicate value-map entry"):
+        import_tabular(source, value_maps)
+
+
 def test_xlsx_import_with_value_map_sheet(tmp_path: Path):
     openpyxl = pytest.importorskip("openpyxl")
     source = tmp_path / "mapping.xlsx"
@@ -98,3 +185,86 @@ def test_xlsx_import_with_value_map_sheet(tmp_path: Path):
     document = import_tabular(source)
     assert document["value_maps"]["countries"]["DE"] == "DE"
     assert validate_document(document) == []
+
+
+def test_xlsx_rejects_headers_that_collide_after_whitespace_normalization(tmp_path: Path):
+    openpyxl = pytest.importorskip("openpyxl")
+    source = tmp_path / "mapping.xlsx"
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = "Mappings"
+    sheet.append(
+        [
+            "mapping_id",
+            "source_system",
+            "source_object",
+            "target_system",
+            "target_object",
+            "source_field",
+            "target_field",
+            " target_field ",
+        ]
+    )
+    sheet.append(["customer", "legacy", "customer", "s4", "bp", "customer_id", "BusinessPartner", "OtherTarget"])
+    workbook.save(source)
+
+    with pytest.raises(ImportErrorDetail) as excinfo:
+        import_tabular(source)
+
+    message = str(excinfo.value)
+    assert "duplicate header 'target_field' after normalization" in message
+    assert f"{source} / sheet Mappings / row 1 / column 8" in message
+
+
+def test_xlsx_rejects_formula_without_cached_value_instead_of_treating_it_as_blank(tmp_path: Path):
+    openpyxl = pytest.importorskip("openpyxl")
+    source = tmp_path / "mapping.xlsx"
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = "Mappings"
+    sheet.append(
+        [
+            "mapping_id",
+            "source_system",
+            "source_object",
+            "target_system",
+            "target_object",
+            "source_field",
+            "target_field",
+        ]
+    )
+    sheet.append(["customer", "legacy", "customer", "s4", "bp", "customer_id", '="BusinessPartner"'])
+    workbook.save(source)
+
+    with pytest.raises(ImportErrorDetail) as excinfo:
+        import_tabular(source)
+
+    message = str(excinfo.value)
+    assert "formula has no cached value" in message
+    assert f"{source} / sheet Mappings / row 2 / column 7" in message
+
+
+def test_xlsx_preserves_leading_zero_text_ids(tmp_path: Path):
+    openpyxl = pytest.importorskip("openpyxl")
+    source = tmp_path / "mapping.xlsx"
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = "Mappings"
+    sheet.append(
+        [
+            "mapping_id",
+            "source_system",
+            "source_object",
+            "target_system",
+            "target_object",
+            "id",
+            "source_field",
+            "target_field",
+        ]
+    )
+    sheet.append(["customer", "legacy", "customer", "s4", "bp", "0007", "customer_id", "BusinessPartner"])
+    workbook.save(source)
+
+    document = import_tabular(source)
+
+    assert document["mapping"]["fields"][0]["id"] == "0007"
