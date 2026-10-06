@@ -275,7 +275,16 @@ def _location_text(item: dict[str, Any]) -> str | None:
     after = item.get("after") if isinstance(item.get("after"), dict) else None
     before = item.get("before") if isinstance(item.get("before"), dict) else None
     location = _metadata_value(after, "location") or _metadata_value(before, "location")
-    return _compact(location) if location is not None else None
+    if not isinstance(location, dict):
+        return _compact(location) if location is not None else None
+    parts: list[str] = []
+    if location.get("file"):
+        parts.append(str(location["file"]))
+    if location.get("sheet"):
+        parts.append(f"sheet {location['sheet']}")
+    if location.get("row") is not None:
+        parts.append(f"row {location['row']}")
+    return " / ".join(parts) if parts else None
 
 
 def _functional_markdown_item(item: dict[str, Any]) -> str:
@@ -300,6 +309,10 @@ def _functional_markdown_item(item: dict[str, Any]) -> str:
     lines.append(
         "  - Criticality: "
         + _transition(_metadata_value(before, "criticality"), _metadata_value(after, "criticality"))
+    )
+    lines.append(
+        "  - Rationale: "
+        + _transition(_metadata_value(before, "rationale"), _metadata_value(after, "rationale"))
     )
     location = _location_text(item)
     if location:
