@@ -268,3 +268,63 @@ def test_xlsx_preserves_leading_zero_text_ids(tmp_path: Path):
     document = import_tabular(source)
 
     assert document["mapping"]["fields"][0]["id"] == "0007"
+
+
+def test_csv_rejects_internal_blank_header_before_row_materialization(tmp_path: Path):
+    source = tmp_path / "mapping.csv"
+    source.write_text(
+        "mapping_id,source_system,source_object,target_system,target_object,,target_field\n"
+        "customer,legacy,customer,s4,bp,customer_id,BusinessPartner\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ImportErrorDetail) as excinfo:
+        import_tabular(source)
+
+    message = str(excinfo.value)
+    assert "blank header is not allowed" in message
+    assert f"{source} / row 1 / column 6" in message
+
+
+def test_blank_csv_rows_do_not_shift_following_diagnostic_provenance(tmp_path: Path):
+    source = tmp_path / "mapping.csv"
+    source.write_text(
+        "mapping_id,source_system,source_object,target_system,target_object,source_field,target_field\n"
+        "customer,legacy,customer,s4,bp,customer_id,BusinessPartner\n"
+        "\n"
+        "customer,legacy,customer,s4,bp,country,\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ImportErrorDetail) as excinfo:
+        import_tabular(source)
+
+    assert f"{source} / row 4: target_field is required" in str(excinfo.value)
+
+
+def test_xlsx_rejects_internal_blank_header(tmp_path: Path):
+    openpyxl = pytest.importorskip("openpyxl")
+    source = tmp_path / "mapping.xlsx"
+    workbook = openpyxl.Workbook()
+    sheet = workbook.active
+    sheet.title = "Mappings"
+    sheet.append(
+        [
+            "mapping_id",
+            "source_system",
+            "source_object",
+            "target_system",
+            "target_object",
+            None,
+            "target_field",
+        ]
+    )
+    sheet.append(["customer", "legacy", "customer", "s4", "bp", "customer_id", "BusinessPartner"])
+    workbook.save(source)
+
+    with pytest.raises(ImportErrorDetail) as excinfo:
+        import_tabular(source)
+
+    message = str(excinfo.value)
+    assert "blank header is not allowed" in message
+    assert f"{source} / sheet Mappings / row 1 / column 6" in message
