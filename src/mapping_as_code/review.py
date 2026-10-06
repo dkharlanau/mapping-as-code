@@ -246,6 +246,73 @@ def _append_limited(lines: list[str], items: list[dict[str, Any]], *, limit: int
         lines.append(f"- … **{remaining} more** not shown in the compact summary.")
 
 
+def _compact(value: Any) -> str:
+    if value is None:
+        return "-"
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return str(value)
+
+
+def _field_name(snapshot: dict[str, Any] | None, section: str) -> Any:
+    if not isinstance(snapshot, dict):
+        return None
+    endpoint = snapshot.get(section) if isinstance(snapshot.get(section), dict) else {}
+    return endpoint.get("field")
+
+
+def _metadata_value(snapshot: dict[str, Any] | None, name: str) -> Any:
+    return snapshot.get(name) if isinstance(snapshot, dict) else None
+
+
+def _transition(before: Any, after: Any) -> str:
+    if before == after:
+        return _compact(after)
+    return f"{_compact(before)} -> {_compact(after)}"
+
+
+def _location_text(item: dict[str, Any]) -> str | None:
+    after = item.get("after") if isinstance(item.get("after"), dict) else None
+    before = item.get("before") if isinstance(item.get("before"), dict) else None
+    location = _metadata_value(after, "location") or _metadata_value(before, "location")
+    return _compact(location) if location is not None else None
+
+
+def _functional_markdown_item(item: dict[str, Any]) -> str:
+    before = item.get("before") if isinstance(item.get("before"), dict) else None
+    after = item.get("after") if isinstance(item.get("after"), dict) else None
+    change_types = ", ".join(item.get("change_types") or ["change"])
+    lines = [f"#### {item['id']} - {item['severity'].upper()} - {change_types}"]
+    lines.append("  - Source: " + _transition(_field_name(before, "source"), _field_name(after, "source")))
+    lines.append("  - Target: " + _transition(_field_name(before, "target"), _field_name(after, "target")))
+    lines.append(
+        "  - Transform: "
+        + _transition(_metadata_value(before, "transform"), _metadata_value(after, "transform"))
+    )
+    lines.append(
+        "  - Required target: "
+        + _transition(
+            _metadata_value(before, "required_target"),
+            _metadata_value(after, "required_target"),
+        )
+    )
+    lines.append("  - Owner: " + _transition(_metadata_value(before, "owner"), _metadata_value(after, "owner")))
+    lines.append(
+        "  - Criticality: "
+        + _transition(_metadata_value(before, "criticality"), _metadata_value(after, "criticality"))
+    )
+    location = _location_text(item)
+    if location:
+        lines.append(f"  - Source location: {location}")
+    impacts = item.get("value_map_impacts") if isinstance(item.get("value_map_impacts"), list) else []
+    if impacts:
+        names = ", ".join(str(impact["map"]) for impact in impacts)
+        lines.append(f"  - Referenced value-map change: {names}")
+    reasons = ", ".join(item.get("decision", {}).get("reasons", []))
+    lines.append(f"  - Decision: review required ({reasons})")
+    return "\n".join(lines)
+
+
 def review_markdown(report: dict[str, Any], *, max_items: int = 20) -> str:
     if max_items < 1:
         raise ValueError("max_items must be at least 1")
