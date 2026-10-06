@@ -91,3 +91,31 @@ def test_lineage_contains_constant_and_field_edges():
     assert len(graph["edges"]) == 3
     assert any(node["kind"] == "constant" for node in graph["nodes"])
     assert any(edge["transform"] == "lookup" for edge in graph["edges"])
+
+
+def test_diff_reports_value_map_entry_changes():
+    old = sample()
+    new = deepcopy(old)
+    new["value_maps"]["countries"]["DE"] = "GER"
+    new["value_maps"]["countries"]["GB"] = "GB"
+
+    result = diff_documents(old, new)
+
+    assert result["has_changes"] is True
+    changed = result["value_maps"]["changed"][0]
+    assert changed["map"] == "countries"
+    assert changed["changed"] == [{"source": "DE", "before": "DE", "after": "GER"}]
+    assert changed["added"] == [{"source": "GB", "target": "GB"}]
+
+
+def test_diff_reports_added_and_removed_value_maps():
+    old = sample()
+    new = deepcopy(old)
+    new["value_maps"]["regions"] = {"EU": "EU"}
+    new["value_maps"].pop("countries")
+
+    result = diff_documents(old, new)
+
+    assert result["value_maps"]["added"] == ["regions"]
+    assert result["value_maps"]["removed"] == ["countries"]
+    assert result["has_changes"] is True
