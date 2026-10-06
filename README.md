@@ -27,7 +27,8 @@ CSV / Excel / YAML
 - deterministic validation and required-target coverage;
 - sandboxed multi-file composition with namespaced reusable fragments;
 - value-map, duplicate, and conflict diagnostics;
-- semantic revision diff by `source`, `target`, `transform`, `rules`, and `business` metadata;
+- semantic revision diff by `source`, `target`, `transform`, `rules`, `business`, and value-map changes;
+- functional review with before/after intent, ownership, required-target status, and optional workbook-row provenance;
 - transparent 0–100 quality score;
 - reusable governance policy packs;
 - breaking-change and quality-regression gates;
@@ -122,6 +123,10 @@ map-code review old.yaml new.yaml \
   --policy policies/enterprise-strict.yaml \
   --format markdown \
   -o review.md
+
+# Optional workbook-row evidence:
+map-code import next.xlsx -o next.yaml --provenance-output next-provenance.json
+map-code review old.yaml next.yaml --new-provenance next-provenance.json --format markdown
 ```
 
 A policy can require ownership/rationale by criticality, set minimum quality, cap warnings, bound quality-score regression, and classify mapping changes as `ignore`, `info`, `warning`, or `error`.
@@ -312,7 +317,7 @@ This prevents cross-repository adapters from silently drifting as the ecosystem 
 ## CLI
 
 ```text
-map-code import <csv|xlsx> ...
+map-code import <csv|xlsx> ... [--provenance-output import-provenance.json]
 map-code compose <manifest> [-o mapping.yaml]
 map-code validate <file>
 map-code score <file>
@@ -321,7 +326,7 @@ map-code annotations <file> [--policy ...]
 map-code sarif <file> [--policy ...] [-o results.sarif]
 map-code diff <old> <new>
 map-code gate <old> <new> [--policy ...]
-map-code review <old> <new> [--max-items 20]
+map-code review <old> <new> [--old-provenance ...] [--new-provenance ...] [--max-items 20]
 map-code lineage <file> [--format json|mermaid|graphml|cypher]
 map-code traceability <file>
 map-code catalog <file> [--format markdown|html]
