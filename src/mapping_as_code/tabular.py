@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import re
+from itertools import zip_longest
 from pathlib import Path
 from typing import Any
 from zipfile import BadZipFile
@@ -9,6 +10,33 @@ from zipfile import BadZipFile
 
 class ImportErrorDetail(ValueError):
     """Raised when tabular mapping input is ambiguous or inconsistent."""
+
+
+class TabularRow(dict[str, Any]):
+    """Internal row carrying source provenance without changing the canonical contract."""
+
+    def __init__(
+        self,
+        values: dict[str, Any],
+        *,
+        source_path: str | None = None,
+        sheet: str | None = None,
+        row_number: int | None = None,
+    ) -> None:
+        super().__init__(values)
+        self.source_path = source_path
+        self.sheet = sheet
+        self.row_number = row_number
+
+    def location(self) -> str | None:
+        parts: list[str] = []
+        if self.source_path:
+            parts.append(self.source_path)
+        if self.sheet:
+            parts.append(f"sheet {self.sheet}")
+        if self.row_number is not None:
+            parts.append(f"row {self.row_number}")
+        return " / ".join(parts) if parts else None
 
 
 def _clean(value: Any) -> Any:
@@ -33,47 +61,246 @@ def _slug(value: str) -> str:
     return slug or "field"
 
 
+def _source_location(
+    source_path: str | None,
+    *,
+    sheet: str | None = None,
+    row_number: int | None = None,
+    column_number: int | None = None,
+) -> str:
+    parts: list[str] = []
+    if source_path:
+        parts.append(source_path)
+    if sheet:
+        parts.append(f"sheet {sheet}")
+    if row_number is not None:
+        parts.append(f"row {row_number}")
+    if column_number is not None:
+        parts.append(f"column {column_number}")
+    return " / ".join(parts) if parts else "input"
+
+
+def _row_location(row: dict[str, Any], fallback_index: int, *, label: str = "row") -> str:
+    if isinstance(row, TabularRow):
+        location = row.location()
+        if location:
+            return location
+    return f"{label} {fallback_index}"
+
+
 def _normalized_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
     for row in rows:
         cleaned = {str(key).strip(): _clean(value) for key, value in row.items() if key is not None}
-        if any(value is not None for value in cleaned.values()):
+        if not any(value is not None for value in cleaned.values()):
+            continue
+        if isinstance(row, TabularRow):
+            normalized.append(
+                TabularRow(
+                    cleaned,
+                    source_path=row.source_path,
+                    sheet=row.sheet,
+                    row_number=row.row_number,
+                )
+            )
+        else:
             normalized.append(cleaned)
     return normalized
 
 
+def _validate_headers(
+    values: list[Any] | tuple[Any, ...],
+    *,
+    source_path: str,
+    sheet: str | None = None,
+    row_number: int = 1,
+    trim_trailing_empty: bool = False,
+) -> list[str]:
+    headers = [str(value).strip() if value is not None else "" for value in values]
+    if trim_trailing_empty:
+        while headers and not headers[-1]:
+            headers.pop()
+    if not headers:
+        return []
+
+    seen: dict[str, int] = {}
+    for column_number, header in enumerate(headers, start=1):
+        location = _source_location(
+            source_path,
+            sheet=sheet,
+            row_number=row_number,
+            column_number=column_number,
+        )
+        if not header:
+            raise ImportErrorDetail(f"{location}: blank header is not allowed")
+        previous = seen.get(header)
+        if previous is not None:
+            previous_location = _source_location(
+                source_path,
+                sheet=sheet,
+                row_number=row_number,
+                column_number=previous,
+            )
+            raise ImportErrorDetail(
+                f"{location}: duplicate header {header!r} after normalization; "
+                f"already defined at {previous_location}"
+            )
+        seen[header] = column_number
+    return headers
+
+
 def _single(rows: list[dict[str, Any]], column: str) -> str:
-    values = {str(row[column]) for row in rows if row.get(column) is not None}
+    values: dict[str, str] = {}
+    for index, row in enumerate(rows, start=2):
+        if row.get(column) is None:
+            continue
+        value = str(row[column])
+        values.setdefault(value, _row_location(row, index))
     if not values:
         raise ImportErrorDetail(f"missing required workbook metadata column value: {column}")
     if len(values) > 1:
-        raise ImportErrorDetail(f"inconsistent workbook metadata for {column}: {sorted(values)}")
-    return values.pop()
+        details = ", ".join(f"{value!r} at {location}" for value, location in sorted(values.items()))
+        raise ImportErrorDetail(f"inconsistent workbook metadata for {column}: {details}")
+    return next(iter(values))
 
 
 def _optional_single(rows: list[dict[str, Any]], column: str) -> str | None:
-    values = {str(row[column]) for row in rows if row.get(column) is not None}
+    values: dict[str, str] = {}
+    for index, row in enumerate(rows, start=2):
+        if row.get(column) is None:
+            continue
+        value = str(row[column])
+        values.setdefault(value, _row_location(row, index))
     if len(values) > 1:
-        raise ImportErrorDetail(f"inconsistent workbook metadata for {column}: {sorted(values)}")
-    return values.pop() if values else None
+        details = ", ".join(f"{value!r} at {location}" for value, location in sorted(values.items()))
+        raise ImportErrorDetail(f"inconsistent workbook metadata for {column}: {details}")
+    return next(iter(values)) if values else None
 
 
 def _read_csv(path: Path) -> list[dict[str, Any]]:
+    source_path = str(path)
     with path.open("r", encoding="utf-8-sig", newline="") as handle:
-        return _normalized_rows(list(csv.DictReader(handle)))
+        reader = csv.reader(handle)
+        try:
+            header_values = next(reader)
+        except StopIteration:
+            return []
+        except csv.Error as exc:
+            raise ImportErrorDetail(f"{source_path} / row 1: invalid CSV: {exc}") from exc
+
+        headers = _validate_headers(header_values, source_path=source_path)
+        rows: list[dict[str, Any]] = []
+        while True:
+            start_line = reader.line_num + 1
+            try:
+                values = next(reader)
+            except StopIteration:
+                break
+            except csv.Error as exc:
+                raise ImportErrorDetail(f"{source_path} / row {start_line}: invalid CSV: {exc}") from exc
+
+            if not values or not any(_clean(value) is not None for value in values):
+                continue
+            if len(values) != len(headers):
+                raise ImportErrorDetail(
+                    f"{source_path} / row {start_line}: expected {len(headers)} columns "
+                    f"but found {len(values)}"
+                )
+            rows.append(
+                TabularRow(
+                    {header: values[index] for index, header in enumerate(headers)},
+                    source_path=source_path,
+                    row_number=start_line,
+                )
+            )
+    return _normalized_rows(rows)
 
 
-def _sheet_rows(sheet: Any) -> list[dict[str, Any]]:
-    iterator = sheet.iter_rows(values_only=True)
+def _resolved_excel_value(formula_cell: Any, cached_cell: Any, *, source_path: str, sheet: str) -> Any:
+    if getattr(formula_cell, "data_type", None) != "f":
+        return formula_cell.value
+
+    cached_value = cached_cell.value if cached_cell is not None else None
+    if cached_value is None:
+        raise ImportErrorDetail(
+            f"{_source_location(source_path, sheet=sheet, row_number=formula_cell.row, column_number=formula_cell.column)}: "
+            "formula has no cached value; recalculate and save the workbook before import"
+        )
+    return cached_value
+
+
+def _sheet_rows(sheet: Any, cached_sheet: Any, *, source_path: str) -> list[dict[str, Any]]:
+    formula_iterator = sheet.iter_rows()
+    cached_iterator = cached_sheet.iter_rows()
     try:
-        header_values = next(iterator)
+        header_cells = next(formula_iterator)
     except StopIteration:
         return []
-    headers = [str(value).strip() if value is not None else "" for value in header_values]
+    try:
+        next(cached_iterator)
+    except StopIteration:
+        pass
+
+    for cell in header_cells:
+        if getattr(cell, "data_type", None) == "f":
+            raise ImportErrorDetail(
+                f"{_source_location(source_path, sheet=sheet.title, row_number=cell.row, column_number=cell.column)}: "
+                "formula headers are not supported"
+            )
+
+    headers = _validate_headers(
+        [cell.value for cell in header_cells],
+        source_path=source_path,
+        sheet=sheet.title,
+        row_number=1,
+        trim_trailing_empty=True,
+    )
+    if not headers:
+        return []
+
     rows: list[dict[str, Any]] = []
-    for values in iterator:
-        row = {headers[index]: value for index, value in enumerate(values) if index < len(headers) and headers[index]}
-        rows.append(row)
+    width = len(headers)
+    for formula_cells, cached_cells in zip_longest(formula_iterator, cached_iterator, fillvalue=()):
+        formula_cells = tuple(formula_cells)
+        cached_cells = tuple(cached_cells)
+        if not formula_cells and not cached_cells:
+            continue
+
+        row_number = formula_cells[0].row if formula_cells else cached_cells[0].row
+        for cell in formula_cells[width:]:
+            if cell.value is not None:
+                raise ImportErrorDetail(
+                    f"{_source_location(source_path, sheet=sheet.title, row_number=row_number, column_number=cell.column)}: "
+                    f"data exists beyond the {width} declared header columns"
+                )
+
+        cached_by_column = {cell.column: cell for cell in cached_cells}
+        values: list[Any] = []
+        for index in range(width):
+            if index >= len(formula_cells):
+                values.append(None)
+                continue
+            formula_cell = formula_cells[index]
+            cached_cell = cached_by_column.get(formula_cell.column)
+            values.append(
+                _resolved_excel_value(
+                    formula_cell,
+                    cached_cell,
+                    source_path=source_path,
+                    sheet=sheet.title,
+                )
+            )
+
+        if not any(_clean(value) is not None for value in values):
+            continue
+        rows.append(
+            TabularRow(
+                {header: values[index] for index, header in enumerate(headers)},
+                source_path=source_path,
+                sheet=sheet.title,
+                row_number=row_number,
+            )
+        )
     return _normalized_rows(rows)
 
 
@@ -86,14 +313,32 @@ def _read_xlsx(path: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
             "XLSX import requires the optional dependency: pip install 'mapping-as-code[excel]'"
         ) from exc
 
+    source_path = str(path)
+    formula_workbook = None
+    cached_workbook = None
     try:
-        workbook = load_workbook(path, read_only=True, data_only=True)
+        formula_workbook = load_workbook(path, read_only=True, data_only=False)
+        cached_workbook = load_workbook(path, read_only=True, data_only=True)
     except (BadZipFile, InvalidFileException) as exc:
         raise ImportErrorDetail(f"invalid or corrupted Excel workbook: {path}") from exc
-    mapping_sheet = workbook["Mappings"] if "Mappings" in workbook.sheetnames else workbook.active
-    mappings = _sheet_rows(mapping_sheet)
-    value_maps = _sheet_rows(workbook["ValueMaps"]) if "ValueMaps" in workbook.sheetnames else []
-    return mappings, value_maps
+
+    try:
+        mapping_sheet = formula_workbook["Mappings"] if "Mappings" in formula_workbook.sheetnames else formula_workbook.active
+        cached_mapping_sheet = cached_workbook[mapping_sheet.title]
+        mappings = _sheet_rows(mapping_sheet, cached_mapping_sheet, source_path=source_path)
+
+        if "ValueMaps" in formula_workbook.sheetnames:
+            value_map_sheet = formula_workbook["ValueMaps"]
+            cached_value_map_sheet = cached_workbook["ValueMaps"]
+            value_maps = _sheet_rows(value_map_sheet, cached_value_map_sheet, source_path=source_path)
+        else:
+            value_maps = []
+        return mappings, value_maps
+    finally:
+        if formula_workbook is not None:
+            formula_workbook.close()
+        if cached_workbook is not None:
+            cached_workbook.close()
 
 
 def read_tabular(
@@ -131,14 +376,15 @@ def import_rows(
     required_sources: list[str] = []
 
     for index, row in enumerate(rows, start=2):
+        location = _row_location(row, index)
         target_field = row.get("target_field")
         if target_field is None:
-            raise ImportErrorDetail(f"row {index}: target_field is required")
+            raise ImportErrorDetail(f"{location}: target_field is required")
 
         transform_type = str(row.get("transform") or "copy").strip().lower()
         source_field = row.get("source_field")
         if transform_type != "constant" and source_field is None:
-            raise ImportErrorDetail(f"row {index}: source_field is required for {transform_type} transform")
+            raise ImportErrorDetail(f"{location}: source_field is required for {transform_type} transform")
 
         field_id = row.get("id")
         if field_id is None:
@@ -157,7 +403,7 @@ def import_rows(
             field["transform"]["reference"] = str(row["reference"])
         if transform_type == "constant":
             if row.get("value") is None:
-                raise ImportErrorDetail(f"row {index}: constant transform requires value")
+                raise ImportErrorDetail(f"{location}: constant transform requires value")
             field["transform"]["value"] = row["value"]
         if transform_type == "expression" and row.get("expression") is not None:
             field["transform"]["expression"] = str(row["expression"])
@@ -184,12 +430,32 @@ def import_rows(
         fields.append(field)
 
     value_maps: dict[str, dict[Any, Any]] = {}
-    for index, row in enumerate(_normalized_rows(value_map_rows or []), start=2):
+    value_map_locations: dict[str, dict[Any, str]] = {}
+    normalized_value_maps = _normalized_rows(value_map_rows or [])
+    for index, row in enumerate(normalized_value_maps, start=2):
+        location = _row_location(row, index, label="value-map row")
         name = row.get("map")
         source_value = row.get("source")
         if name is None or source_value is None or "target" not in row or row.get("target") is None:
-            raise ImportErrorDetail(f"value-map row {index}: map, source, and target are required")
-        value_maps.setdefault(str(name), {})[source_value] = row["target"]
+            raise ImportErrorDetail(f"{location}: map, source, and target are required")
+
+        map_name = str(name)
+        target_value = row["target"]
+        current_map = value_maps.setdefault(map_name, {})
+        current_locations = value_map_locations.setdefault(map_name, {})
+        if source_value in current_map:
+            previous_location = current_locations[source_value]
+            if current_map[source_value] == target_value:
+                raise ImportErrorDetail(
+                    f"{location}: duplicate value-map entry {map_name!r} / {source_value!r}; "
+                    f"already defined at {previous_location}"
+                )
+            raise ImportErrorDetail(
+                f"{location}: conflicting value-map entry {map_name!r} / {source_value!r}: "
+                f"{current_map[source_value]!r} at {previous_location} versus {target_value!r}"
+            )
+        current_map[source_value] = target_value
+        current_locations[source_value] = location
 
     mapping: dict[str, Any] = {
         "id": mapping_id,
