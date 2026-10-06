@@ -4,7 +4,7 @@ import json
 from collections import Counter
 from typing import Any
 
-from .governance import breaking_change_report, quality_scorecard, validation_report
+from .governance import breaking_change_report, canonical_hash, quality_scorecard, validation_report
 
 
 _SEVERITY_RANK = {"info": 0, "warning": 1, "error": 2}
@@ -179,6 +179,22 @@ def _functional_changes(
     return result
 
 
+def _verify_provenance(
+    document: dict[str, Any],
+    provenance: dict[str, Any] | None,
+    *,
+    label: str,
+) -> None:
+    if provenance is None:
+        return
+    expected = provenance.get("document_sha256") if isinstance(provenance, dict) else None
+    actual = canonical_hash(document)
+    if expected != actual:
+        raise ValueError(
+            f"{label} provenance document_sha256 does not match the canonical mapping"
+        )
+
+
 def review_report(
     old: dict[str, Any],
     new: dict[str, Any],
@@ -187,6 +203,8 @@ def review_report(
     old_provenance: dict[str, Any] | None = None,
     new_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    _verify_provenance(old, old_provenance, label="baseline")
+    _verify_provenance(new, new_provenance, label="current")
     baseline_quality = quality_scorecard(old)
     current_validation = validation_report(new, policy)
     changes = breaking_change_report(old, new, policy)
