@@ -1,0 +1,2 @@
+mapping_id,title,source_system,source_object,target_system,target_object,id,source_field,target_field,target_field,transform
+sap-customer-bp,SAP Customer to Business Partner migration mapping,SAP-ECC,Customer,SAP-S4,BusinessPartner,name,NAME1,OrganizationName1,WrongTarget,copy
