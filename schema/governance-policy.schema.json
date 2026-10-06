@@ -34,7 +34,8 @@
         "target": {"$ref": "#/$defs/severity"},
         "transform": {"$ref": "#/$defs/severity"},
         "rules": {"$ref": "#/$defs/severity"},
-        "business": {"$ref": "#/$defs/severity"}
+        "business": {"$ref": "#/$defs/severity"},
+        "value_map": {"$ref": "#/$defs/severity"}
       },
       "additionalProperties": false
     }
