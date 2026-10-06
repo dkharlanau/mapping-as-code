@@ -528,9 +528,12 @@ def tabular_provenance(
                 }
             )
 
+    from .governance import canonical_hash
+
     return {
         "provenance_version": 1,
         "mapping_id": mapping.get("id"),
+        "document_sha256": canonical_hash(document),
         "fields": field_locations,
         "value_maps": value_map_locations,
     }
