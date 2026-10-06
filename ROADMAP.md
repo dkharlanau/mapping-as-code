@@ -72,6 +72,10 @@
 - [x] adapter conformance tests for Transformation Graph, Reconciliation, Change Graph, Visual Workbench, and Interface as Code
 - [x] portable GraphML and Cypher lineage export
 - [x] generated cross-repository ecosystem evidence bundle
+- [x] lossless-or-rejected tabular intake with physical source diagnostics
+- [x] workbook provenance sidecars kept outside the semantic mapping hash
+- [x] value-map-aware semantic diff and policy classification
+- [x] consultant-focused functional review with old/new intent and decision context
 
 ## P0 — scale and enterprise ingestion
 
