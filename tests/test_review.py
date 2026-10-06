@@ -2,6 +2,7 @@ from copy import deepcopy
 
 import pytest
 
+from mapping_as_code.governance import canonical_hash
 from mapping_as_code.io import load_document
 from mapping_as_code.review import review_markdown, review_report
 
@@ -100,6 +101,7 @@ def test_review_can_attach_external_source_provenance_without_changing_mapping()
     old = load_document("examples/customer-master.yaml")
     new = load_document("examples/customer-master-v2.yaml")
     provenance = {
+        "document_sha256": canonical_hash(new),
         "fields": {
             "customer-name": {
                 "file": "customer-bp-v2.xlsx",
@@ -129,3 +131,15 @@ def test_review_markdown_contains_functional_intent_details():
     assert "customer-name" in text
     assert "Transform:" in text
     assert "Decision: review required" in text
+
+
+def test_review_rejects_provenance_from_a_different_mapping_revision():
+    old = load_document("examples/customer-master.yaml")
+    new = load_document("examples/customer-master-v2.yaml")
+    wrong_provenance = {
+        "document_sha256": canonical_hash(old),
+        "fields": {},
+    }
+
+    with pytest.raises(ValueError, match="current provenance document_sha256 does not match"):
+        review_report(old, new, new_provenance=wrong_provenance)
