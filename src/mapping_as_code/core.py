@@ -242,6 +242,63 @@ def _field_index(document: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return result
 
 
+def _stable_value_key(value: Any) -> tuple[str, str]:
+    return type(value).__name__, repr(value)
+
+
+def _value_map_diff(old: dict[str, Any], new: dict[str, Any]) -> dict[str, Any]:
+    def index(document: dict[str, Any]) -> dict[str, dict[Any, Any]]:
+        raw = document.get("value_maps") if isinstance(document.get("value_maps"), dict) else {}
+        return {
+            str(name): entries
+            for name, entries in raw.items()
+            if isinstance(entries, dict)
+        }
+
+    old_index = index(old)
+    new_index = index(new)
+    old_names = set(old_index)
+    new_names = set(new_index)
+    changed: list[dict[str, Any]] = []
+
+    for name in sorted(old_names & new_names):
+        before = old_index[name]
+        after = new_index[name]
+        before_keys = set(before)
+        after_keys = set(after)
+        added = [
+            {"source": key, "target": after[key]}
+            for key in sorted(after_keys - before_keys, key=_stable_value_key)
+        ]
+        removed = [
+            {"source": key, "target": before[key]}
+            for key in sorted(before_keys - after_keys, key=_stable_value_key)
+        ]
+        modified = [
+            {"source": key, "before": before[key], "after": after[key]}
+            for key in sorted(before_keys & after_keys, key=_stable_value_key)
+            if before[key] != after[key]
+        ]
+        if added or removed or modified:
+            changed.append(
+                {
+                    "map": name,
+                    "added": added,
+                    "removed": removed,
+                    "changed": modified,
+                }
+            )
+
+    added_maps = sorted(new_names - old_names)
+    removed_maps = sorted(old_names - new_names)
+    return {
+        "added": added_maps,
+        "removed": removed_maps,
+        "changed": changed,
+        "has_changes": bool(added_maps or removed_maps or changed),
+    }
+
+
 def diff_documents(old: dict[str, Any], new: dict[str, Any]) -> dict[str, Any]:
     """Return a stable, machine-readable field mapping diff."""
     old_index = _field_index(old)
@@ -260,13 +317,15 @@ def diff_documents(old: dict[str, Any], new: dict[str, Any]) -> dict[str, Any]:
         if changes:
             changed.append({"id": key, "changes": changes})
 
+    value_maps = _value_map_diff(old, new)
     return {
         "old_mapping_id": (old.get("mapping") or {}).get("id") if isinstance(old.get("mapping"), dict) else None,
         "new_mapping_id": (new.get("mapping") or {}).get("id") if isinstance(new.get("mapping"), dict) else None,
         "added": sorted(new_keys - old_keys),
         "removed": sorted(old_keys - new_keys),
         "changed": changed,
-        "has_changes": bool((new_keys - old_keys) or (old_keys - new_keys) or changed),
+        "value_maps": value_maps,
+        "has_changes": bool((new_keys - old_keys) or (old_keys - new_keys) or changed or value_maps["has_changes"]),
     }
 
 
