@@ -36,11 +36,12 @@ build/sap-customer-bp-mapping/
   mapping.yaml
   validation-report.json
   quality-score.json
+  import-provenance.json
   preflight-summary.json
   reconciliation.yaml
 ```
 
-`mapping.yaml` is the canonical imported Mapping as Code contract. The validation and quality reports are derived evidence. `reconciliation.yaml` is generated only when the mapping is valid and all four RAC handoff arguments were supplied explicitly.
+`mapping.yaml` is the canonical imported Mapping as Code contract. `import-provenance.json` keeps workbook file/sheet/row locations outside that semantic contract. The validation and quality reports are derived evidence. `reconciliation.yaml` is generated only when the mapping is valid and all four RAC handoff arguments were supplied explicitly.
 
 ## 2. What the workbook deliberately models
 
@@ -64,10 +65,11 @@ For a real project, retain the canonical mapping from the previous reviewed revi
 ```bash
 map-code-preflight next-revision.xlsx \
   --baseline build/sap-customer-bp-mapping/mapping.yaml \
+  --baseline-provenance build/sap-customer-bp-mapping/import-provenance.json \
   --output-dir build/sap-customer-bp-mapping-next
 ```
 
-The preflight adds `semantic-review.json` and `semantic-review.md`. It still does not authorize the change; it makes the semantic delta reviewable.
+The preflight adds `semantic-review.json` and `semantic-review.md`. The review shows old/new field intent, ownership, required-target status, and workbook source rows. Changes inside a referenced value map also mark the lookup rule for review. It still does not authorize the change; it makes the semantic delta reviewable.
 
 ## Boundaries
 
