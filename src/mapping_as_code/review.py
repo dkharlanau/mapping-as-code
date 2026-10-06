@@ -183,6 +183,9 @@ def review_report(
     old: dict[str, Any],
     new: dict[str, Any],
     policy: dict[str, Any] | None = None,
+    *,
+    old_provenance: dict[str, Any] | None = None,
+    new_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     baseline_quality = quality_scorecard(old)
     current_validation = validation_report(new, policy)
@@ -219,6 +222,17 @@ def review_report(
             },
         },
         "changes": changes,
+        "functional_changes": _functional_changes(
+            old,
+            new,
+            changes,
+            old_provenance=old_provenance,
+            new_provenance=new_provenance,
+        ),
+        "provenance": {
+            "baseline_available": old_provenance is not None,
+            "current_available": new_provenance is not None,
+        },
         "passed": passed,
     }
 
