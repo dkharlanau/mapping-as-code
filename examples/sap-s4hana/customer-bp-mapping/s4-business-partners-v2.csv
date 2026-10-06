@@ -1,0 +1,3 @@
+BusinessPartner,LegacyCustomerID,OrganizationName1,Country,BusinessPartnerGrouping,SalesOrganization,TaxNumber,CityName
+900001,100001,Alpha Bikes GmbH,DE,ZCUST,1000,DE123456789,Berlin
+900002,100002,Northwind Parts Inc,US,ZRETAIL,2000,US987654321,Seattle

@@ -1,0 +1,6 @@
+map,source,target
+country-code,DE,DE
+country-code,US,US
+country-code,FR,FR
+account-group-to-bp-grouping,Z001,ZCUST
+account-group-to-bp-grouping,Z002,ZRETAIL

@@ -9,6 +9,7 @@ All notable public changes are recorded here. Mapping as Code uses semantic pack
 - Keep workbook file/sheet/row provenance in a sidecar instead of changing the canonical mapping hash.
 - Include value-map changes in semantic diff and policy classification.
 - Add a functional review view with before/after source, target, transform, required status, ownership, criticality, rationale, and review reasons.
+- Add a runnable SAP Customer → Business Partner review lifecycle covering malformed input, rejected semantic changes, corrected changes, and a pinned reconciliation handoff.
 
 ## 0.5.0 — release candidate
 

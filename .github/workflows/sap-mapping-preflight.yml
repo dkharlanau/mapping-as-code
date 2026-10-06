@@ -19,7 +19,7 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install -e '.[dev]'
 
-      - name: Run SAP Customer to BP mapping preflight
+      - name: Run baseline SAP Customer to BP preflight
         run: >-
           map-code-preflight
           examples/sap-s4hana/customer-bp-mapping/customer-bp-mapping.xlsx
@@ -30,15 +30,16 @@ jobs:
           --target-key LegacyCustomerID
           --output-dir build/sap-customer-bp-mapping
 
-      - name: Validate canonical mapping and handoff
+      - name: Validate baseline mapping and handoff
         run: |
           map-code validate build/sap-customer-bp-mapping/mapping.yaml
           test -s build/sap-customer-bp-mapping/validation-report.json
           test -s build/sap-customer-bp-mapping/quality-score.json
+          test -s build/sap-customer-bp-mapping/import-provenance.json
           test -s build/sap-customer-bp-mapping/preflight-summary.json
           test -s build/sap-customer-bp-mapping/reconciliation.yaml
 
-      - name: Verify linked-source RAC boundary
+      - name: Verify baseline linked-source RAC boundary
         run: >-
           python -c "import json,yaml;
           s=json.load(open('build/sap-customer-bp-mapping/preflight-summary.json'));
@@ -53,4 +54,75 @@ jobs:
           ids={c['id'] for c in r['checks']};
           assert {'record-coverage','name','country','grouping','sales-org','tax-number'} <= ids;
           assert 'legacy-id' not in ids;
-          print('SAP mapping preflight handoff verified')"
+          print('baseline SAP mapping handoff verified')"
+
+      - name: Reject malformed workbook before canonical mapping exists
+        shell: bash
+        run: |
+          set +e
+          map-code-preflight             examples/sap-s4hana/customer-bp-mapping/customer-bp-mapping-malformed.csv             --output-dir build/sap-customer-bp-malformed
+          status=$?
+          set -e
+          test "$status" -eq 2
+          test ! -e build/sap-customer-bp-malformed/mapping.yaml
+          test ! -e build/sap-customer-bp-malformed/import-provenance.json
+
+      - name: Review deliberately broken revision
+        shell: bash
+        run: |
+          set +e
+          map-code-preflight             examples/sap-s4hana/customer-bp-mapping/customer-bp-mapping-v2-broken.csv             --value-maps examples/sap-s4hana/customer-bp-mapping/customer-bp-value-maps-v2-broken.csv             --policy policies/migration-pragmatic.yaml             --baseline build/sap-customer-bp-mapping/mapping.yaml             --baseline-provenance build/sap-customer-bp-mapping/import-provenance.json             --output-dir build/sap-customer-bp-broken
+          status=$?
+          set -e
+          test "$status" -eq 1
+          test -s build/sap-customer-bp-broken/semantic-review.json
+          test -s build/sap-customer-bp-broken/semantic-review.md
+
+      - name: Verify broken revision findings are actionable
+        run: >-
+          python -c "import json;
+          r=json.load(open('build/sap-customer-bp-broken/semantic-review.json'));
+          assert r['passed'] is False;
+          assert r['current']['validation']['valid'] is False;
+          changes={c['id']:c for c in r['functional_changes']};
+          assert 'transform' in changes['name']['change_types'];
+          assert 'target' in changes['country']['change_types'];
+          assert 'value_map' in changes['country']['change_types'];
+          assert changes['country']['after']['owner'] is None;
+          loc=changes['country']['after']['location'];
+          assert loc['file'].endswith('customer-bp-mapping-v2-broken.csv') and loc['row']==4;
+          vm=[e for e in r['changes']['events'] if e['kind']=='value_map' and e.get('map')=='country-code'];
+          assert any(e.get('source_value')=='DE' and e.get('before')=='DE' and e.get('after')=='D' for e in vm);
+          print('broken revision findings verified')"
+
+      - name: Run corrected revision and RAC handoff
+        run: >-
+          map-code-preflight
+          examples/sap-s4hana/customer-bp-mapping/customer-bp-mapping-v2-corrected.csv
+          --value-maps examples/sap-s4hana/customer-bp-mapping/customer-bp-value-maps-v2-corrected.csv
+          --policy policies/migration-pragmatic.yaml
+          --baseline build/sap-customer-bp-mapping/mapping.yaml
+          --baseline-provenance build/sap-customer-bp-mapping/import-provenance.json
+          --source-file examples/sap-s4hana/customer-bp-mapping/legacy-customers-v2.csv
+          --target-file examples/sap-s4hana/customer-bp-mapping/s4-business-partners-v2.csv
+          --source-key KUNNR
+          --target-key LegacyCustomerID
+          --output-dir build/sap-customer-bp-corrected
+
+      - name: Verify corrected revision is reviewable and linked
+        run: >-
+          python -c "import json,yaml;
+          r=json.load(open('build/sap-customer-bp-corrected/semantic-review.json'));
+          s=json.load(open('build/sap-customer-bp-corrected/preflight-summary.json'));
+          rac=yaml.safe_load(open('build/sap-customer-bp-corrected/reconciliation.yaml'));
+          assert r['passed'] is True;
+          assert s['validation']['valid'] is True;
+          assert s['rac_handoff']['generated'] is True;
+          changes={c['id']:c for c in r['functional_changes']};
+          assert changes['city']['change_types']==['added'];
+          assert 'value_map' in changes['country']['change_types'];
+          assert changes['country']['severity']=='info';
+          ids={c['id'] for c in rac['checks']};
+          assert 'city' in ids and 'legacy-id' not in ids;
+          assert rac['source']['key']=='KUNNR' and rac['target']['key']=='LegacyCustomerID';
+          print('corrected revision review and RAC handoff verified')"
