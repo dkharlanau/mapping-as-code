@@ -24,3 +24,4 @@ breaking_changes:
   transform: error
   rules: warning
   business: warning
+  value_map: error
